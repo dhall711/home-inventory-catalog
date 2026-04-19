@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { CATEGORIES, type CategorySlug, type ItemStatus, type SortOption } from '@/lib/types';
-import { useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 export interface SidebarOption {
   id: string;
@@ -26,6 +26,15 @@ const SORTS: { value: SortOption; label: string }[] = [
   { value: 'acquired_desc', label: 'Newest acquired' },
 ];
 
+const QUALITY_FLAGS: { key: string; label: string }[] = [
+  { key: 'has_photo', label: 'Has photo' },
+  { key: 'missing_photo', label: 'Missing photo' },
+  { key: 'has_serial', label: 'Has serial #' },
+  { key: 'missing_serial', label: 'Missing serial #' },
+  { key: 'missing_value', label: 'Missing value' },
+  { key: 'needs_review', label: 'Needs review' },
+];
+
 export function FilterSidebar({ locations, collections, tags, totalCount }: Props) {
   const router = useRouter();
   const sp = useSearchParams();
@@ -41,7 +50,53 @@ export function FilterSidebar({ locations, collections, tags, totalCount }: Prop
     [router, sp]
   );
 
+  /**
+   * Toggle one value in a comma-separated multi-value param.
+   * We keep the URL human-friendly with comma joining instead of repeated keys.
+   */
+  const toggleMulti = useCallback(
+    (key: string, value: string) => {
+      const params = new URLSearchParams(sp?.toString() ?? '');
+      const existing = (params.get(key) ?? '').split(',').map((v) => v.trim()).filter(Boolean);
+      const next = existing.includes(value)
+        ? existing.filter((v) => v !== value)
+        : [...existing, value];
+      if (next.length === 0) params.delete(key);
+      else params.set(key, next.join(','));
+      params.delete('page');
+      router.push(`/items?${params.toString()}`);
+    },
+    [router, sp]
+  );
+
   const get = (k: string) => sp?.get(k) ?? '';
+  const getMulti = (k: string) =>
+    (sp?.get(k) ?? '').split(',').map((v) => v.trim()).filter(Boolean);
+
+  // 300ms-debounced live search.
+  const [search, setSearch] = useState(get('q'));
+  const initialQRef = useRef(get('q'));
+  useEffect(() => {
+    if (search === initialQRef.current) return;
+    const t = setTimeout(() => {
+      setParam('q', search || null);
+      initialQRef.current = search;
+    }, 300);
+    return () => clearTimeout(t);
+  }, [search, setParam]);
+  // Keep search in sync if URL changes externally (e.g. clearing filters).
+  useEffect(() => {
+    const next = sp?.get('q') ?? '';
+    if (next !== initialQRef.current) {
+      initialQRef.current = next;
+      setSearch(next);
+    }
+  }, [sp]);
+
+  const selectedCategories = useMemo(() => new Set(getMulti('category')), [sp]);
+  const selectedLocations = useMemo(() => new Set(getMulti('location_id')), [sp]);
+  const selectedCollections = useMemo(() => new Set(getMulti('collection_id')), [sp]);
+  const selectedTags = useMemo(() => new Set(getMulti('tag_id')), [sp]);
 
   return (
     <aside className="card p-4 space-y-5 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
@@ -52,10 +107,8 @@ export function FilterSidebar({ locations, collections, tags, totalCount }: Prop
         <input
           className="input"
           placeholder="Search name, serial, notes..."
-          defaultValue={get('q')}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') setParam('q', (e.target as HTMLInputElement).value);
-          }}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
         />
       </div>
 
@@ -67,41 +120,55 @@ export function FilterSidebar({ locations, collections, tags, totalCount }: Prop
         </select>
       </FilterSection>
 
-      <FilterSection title="Category">
-        <select className="input" value={get('category')} onChange={(e) => setParam('category', e.target.value)}>
-          <option value="">All categories</option>
-          {CATEGORIES.map((c) => (
-            <option key={c.slug} value={c.slug}>{c.name}</option>
-          ))}
-        </select>
-      </FilterSection>
+      <ChipGroup title="Category">
+        {CATEGORIES.map((c) => (
+          <Chip
+            key={c.slug}
+            label={c.name}
+            active={selectedCategories.has(c.slug)}
+            onClick={() => toggleMulti('category', c.slug)}
+          />
+        ))}
+      </ChipGroup>
 
-      <FilterSection title="Location">
-        <select className="input" value={get('location_id')} onChange={(e) => setParam('location_id', e.target.value)}>
-          <option value="">Any location</option>
+      {locations.length > 0 && (
+        <ChipGroup title="Locations">
           {locations.map((l) => (
-            <option key={l.id} value={l.id}>{l.name}</option>
+            <Chip
+              key={l.id}
+              label={l.name}
+              active={selectedLocations.has(l.id)}
+              onClick={() => toggleMulti('location_id', l.id)}
+            />
           ))}
-        </select>
-      </FilterSection>
+        </ChipGroup>
+      )}
 
-      <FilterSection title="Collection">
-        <select className="input" value={get('collection_id')} onChange={(e) => setParam('collection_id', e.target.value)}>
-          <option value="">Any collection</option>
+      {collections.length > 0 && (
+        <ChipGroup title="Collections">
           {collections.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
+            <Chip
+              key={c.id}
+              label={c.name}
+              active={selectedCollections.has(c.id)}
+              onClick={() => toggleMulti('collection_id', c.id)}
+            />
           ))}
-        </select>
-      </FilterSection>
+        </ChipGroup>
+      )}
 
-      <FilterSection title="Tag">
-        <select className="input" value={get('tag_id')} onChange={(e) => setParam('tag_id', e.target.value)}>
-          <option value="">Any tag</option>
+      {tags.length > 0 && (
+        <ChipGroup title="Tags">
           {tags.map((t) => (
-            <option key={t.id} value={t.id}>{t.name}</option>
+            <Chip
+              key={t.id}
+              label={t.name}
+              active={selectedTags.has(t.id)}
+              onClick={() => toggleMulti('tag_id', t.id)}
+            />
           ))}
-        </select>
-      </FilterSection>
+        </ChipGroup>
+      )}
 
       <FilterSection title="Status">
         <select className="input" value={get('status')} onChange={(e) => setParam('status', e.target.value)}>
@@ -120,6 +187,7 @@ export function FilterSidebar({ locations, collections, tags, totalCount }: Prop
             placeholder="Min"
             defaultValue={get('min_value')}
             onBlur={(e) => setParam('min_value', e.target.value)}
+            key={`min-${get('min_value')}`}
           />
           <input
             type="number"
@@ -127,18 +195,61 @@ export function FilterSidebar({ locations, collections, tags, totalCount }: Prop
             placeholder="Max"
             defaultValue={get('max_value')}
             onBlur={(e) => setParam('max_value', e.target.value)}
+            key={`max-${get('max_value')}`}
           />
         </div>
       </FilterSection>
 
-      <label className="flex items-center gap-2 text-sm text-brand-200">
-        <input
-          type="checkbox"
-          checked={get('has_serial') === 'true'}
-          onChange={(e) => setParam('has_serial', e.target.checked ? 'true' : null)}
-        />
-        Has serial number
-      </label>
+      <FilterSection title="Acquired">
+        <div className="grid grid-cols-2 gap-2">
+          <input
+            type="date"
+            className="input"
+            defaultValue={get('acquired_from')}
+            onChange={(e) => setParam('acquired_from', e.target.value)}
+            key={`acq-from-${get('acquired_from')}`}
+          />
+          <input
+            type="date"
+            className="input"
+            defaultValue={get('acquired_to')}
+            onChange={(e) => setParam('acquired_to', e.target.value)}
+            key={`acq-to-${get('acquired_to')}`}
+          />
+        </div>
+      </FilterSection>
+
+      <FilterSection title="Added">
+        <div className="grid grid-cols-2 gap-2">
+          <input
+            type="date"
+            className="input"
+            defaultValue={get('added_from')}
+            onChange={(e) => setParam('added_from', e.target.value)}
+            key={`add-from-${get('added_from')}`}
+          />
+          <input
+            type="date"
+            className="input"
+            defaultValue={get('added_to')}
+            onChange={(e) => setParam('added_to', e.target.value)}
+            key={`add-to-${get('added_to')}`}
+          />
+        </div>
+      </FilterSection>
+
+      <ChipGroup title="Quality">
+        {QUALITY_FLAGS.map((f) => (
+          <Chip
+            key={f.key}
+            label={f.label}
+            active={get(f.key) === 'true'}
+            onClick={() => setParam(f.key, get(f.key) === 'true' ? null : 'true')}
+          />
+        ))}
+      </ChipGroup>
+
+      <SaveCurrentFilter />
 
       <button
         type="button"
@@ -151,12 +262,94 @@ export function FilterSidebar({ locations, collections, tags, totalCount }: Prop
   );
 }
 
+function SaveCurrentFilter() {
+  const router = useRouter();
+  const sp = useSearchParams();
+  const qs = sp?.toString() ?? '';
+  // Don't bother showing the save button when nothing is filtered.
+  const hasFilters = qs.length > 0 && Array.from(sp?.keys() ?? []).some((k) => k !== 'sort' && k !== 'page');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  if (!hasFilters) return null;
+
+  return (
+    <div className="space-y-1">
+      <button
+        type="button"
+        disabled={busy}
+        onClick={async () => {
+          const name = window.prompt('Name this saved search:');
+          if (!name) return;
+          setBusy(true);
+          setMsg(null);
+          try {
+            const res = await fetch('/api/saved-searches', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ name: name.trim(), query_string: qs }),
+            });
+            if (!res.ok) {
+              const j = await res.json().catch(() => ({}));
+              throw new Error(j.error || `Failed (${res.status})`);
+            }
+            setMsg('Saved!');
+            router.refresh();
+          } catch (e) {
+            setMsg(e instanceof Error ? e.message : 'Failed to save');
+          } finally {
+            setBusy(false);
+            setTimeout(() => setMsg(null), 2500);
+          }
+        }}
+        className="btn-secondary w-full text-xs"
+      >
+        {busy ? 'Saving...' : '★ Save current filter'}
+      </button>
+      {msg && <div className="text-[11px] text-brand-300 text-center">{msg}</div>}
+    </div>
+  );
+}
+
 function FilterSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
       <div className="text-xs uppercase tracking-wider text-brand-300 mb-1">{title}</div>
       {children}
     </div>
+  );
+}
+
+function ChipGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-xs uppercase tracking-wider text-brand-300 mb-2">{title}</div>
+      <div className="flex flex-wrap gap-1.5">{children}</div>
+    </div>
+  );
+}
+
+function Chip({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`text-xs rounded-full border px-2.5 py-1 transition-colors ${
+        active
+          ? 'bg-brand-500 border-brand-400 text-white'
+          : 'border-brand-700 text-brand-200 hover:bg-brand-800'
+      }`}
+    >
+      {label}
+    </button>
   );
 }
 

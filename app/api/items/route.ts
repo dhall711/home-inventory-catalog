@@ -1,29 +1,14 @@
 import { NextResponse } from 'next/server';
 import { requireHousehold } from '@/lib/household';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { listItems, upsertItemAttributes } from '@/lib/items';
-import type { CategorySlug, ItemFilters, SortOption } from '@/lib/types';
+import { listItems, parseItemFilters, upsertItemAttributes } from '@/lib/items';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   const household = await requireHousehold();
   const url = new URL(request.url);
-  const sp = url.searchParams;
-  const filters: ItemFilters = {
-    q: sp.get('q') ?? undefined,
-    category: (sp.get('category') as CategorySlug) || undefined,
-    location_id: sp.get('location_id') ?? undefined,
-    collection_id: sp.get('collection_id') ?? undefined,
-    tag_id: sp.get('tag_id') ?? undefined,
-    status: (sp.get('status') as ItemFilters['status']) || undefined,
-    min_value: sp.get('min_value') ? Number(sp.get('min_value')) : undefined,
-    max_value: sp.get('max_value') ? Number(sp.get('max_value')) : undefined,
-    has_serial: sp.get('has_serial') === 'true' ? true : undefined,
-    page: sp.get('page') ? Number(sp.get('page')) : 1,
-    page_size: sp.get('page_size') ? Number(sp.get('page_size')) : undefined,
-    sort: (sp.get('sort') as SortOption) || undefined,
-  };
+  const filters = parseItemFilters(url.searchParams);
   const result = await listItems(household.id, filters);
   return NextResponse.json(result);
 }

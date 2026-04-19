@@ -175,14 +175,35 @@ export interface BoundingBox {
 
 export interface ItemFilters {
   q?: string;
+  /** Single category (legacy). For multi-select, use `categories`. */
   category?: CategorySlug | '';
+  /** Multi-select category slugs (overrides `category` when set). */
+  categories?: CategorySlug[];
   location_id?: string;
+  /** Multi-select locations (overrides `location_id` when set). */
+  location_ids?: string[];
   collection_id?: string;
+  /** Multi-select collections (overrides `collection_id` when set). */
+  collection_ids?: string[];
   tag_id?: string;
+  /** Multi-select tag ids (overrides `tag_id` when set). */
+  tag_ids?: string[];
   status?: ItemStatus | '';
   min_value?: number;
   max_value?: number;
+  /** Acquired-date range (ISO date strings). */
+  acquired_from?: string;
+  acquired_to?: string;
+  /** Added/created-at range (ISO date strings). */
+  added_from?: string;
+  added_to?: string;
+  /** Quality / data-completeness filters. */
   has_serial?: boolean;
+  missing_serial?: boolean;
+  has_photo?: boolean;
+  missing_photo?: boolean;
+  missing_value?: boolean;
+  needs_review?: boolean;
   has_receipt?: boolean;
   page?: number;
   page_size?: number;

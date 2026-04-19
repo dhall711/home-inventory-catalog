@@ -1,49 +1,30 @@
 import Link from 'next/link';
 import { requireHousehold } from '@/lib/household';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { listItems, DEFAULT_PAGE_SIZE } from '@/lib/items';
-import type { CategorySlug, ItemFilters, ItemStatus, SortOption } from '@/lib/types';
+import { listItems, parseItemFilters } from '@/lib/items';
 import { FilterSidebar } from '@/components/FilterSidebar';
 import { ItemsView } from '@/components/ItemsView';
+import { QuickFilterChips } from '@/components/QuickFilterChips';
 
 export const dynamic = 'force-dynamic';
-
-interface SearchParams {
-  q?: string;
-  category?: string;
-  location_id?: string;
-  collection_id?: string;
-  tag_id?: string;
-  status?: string;
-  min_value?: string;
-  max_value?: string;
-  has_serial?: string;
-  page?: string;
-  sort?: string;
-}
 
 export default async function ItemsPage({
   searchParams,
 }: {
-  searchParams: Promise<SearchParams>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
   const household = await requireHousehold();
   const supabase = await createSupabaseServerClient();
 
-  const filters: ItemFilters = {
-    q: sp.q || undefined,
-    category: (sp.category as CategorySlug) || undefined,
-    location_id: sp.location_id || undefined,
-    collection_id: sp.collection_id || undefined,
-    tag_id: sp.tag_id || undefined,
-    status: (sp.status as ItemStatus) || undefined,
-    min_value: sp.min_value ? Number(sp.min_value) : undefined,
-    max_value: sp.max_value ? Number(sp.max_value) : undefined,
-    has_serial: sp.has_serial === 'true' ? true : undefined,
-    page: sp.page ? Number(sp.page) : 1,
-    sort: (sp.sort as SortOption) || undefined,
-  };
+  // Reconstruct a URLSearchParams from Next's sp shape so we can reuse the
+  // same parser the API route uses (handles repeated keys + comma-lists).
+  const usp = new URLSearchParams();
+  for (const [k, v] of Object.entries(sp)) {
+    if (Array.isArray(v)) v.forEach((x) => x && usp.append(k, x));
+    else if (v) usp.append(k, v);
+  }
+  const filters = parseItemFilters(usp);
 
   const [{ items, total, page, page_size }, locations, collections, tags] = await Promise.all([
     listItems(household.id, filters),
@@ -68,7 +49,16 @@ export default async function ItemsPage({
             <Link href="/items/new" className="btn-primary">Add item</Link>
           </div>
         </div>
-        <ItemsView items={items} total={total} page={page} pageSize={page_size} currency={household.currency} />
+        <QuickFilterChips />
+        <ItemsView
+          items={items}
+          total={total}
+          page={page}
+          pageSize={page_size}
+          currency={household.currency}
+          locations={locations.data ?? []}
+          collections={collections.data ?? []}
+        />
       </section>
     </div>
   );

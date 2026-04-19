@@ -27,6 +27,7 @@ interface Props {
   allTags: SelectOption[];
   prefill?: AIExtractedItem | null;
   initialCollectionId?: string;
+  initialLocationId?: string;
 }
 
 const STATUSES: ItemStatus[] = ['active', 'sold', 'disposed', 'lost', 'review'];
@@ -44,6 +45,7 @@ export function ItemForm({
   allTags,
   prefill,
   initialCollectionId,
+  initialLocationId,
 }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -59,7 +61,7 @@ export function ItemForm({
   const [serialNumber, setSerialNumber] = useState(item?.serial_number ?? prefill?.serial_number ?? '');
   const [condition, setCondition] = useState(item?.condition ?? prefill?.condition ?? '');
   const [status, setStatus] = useState<ItemStatus>(item?.status ?? 'active');
-  const [locationId, setLocationId] = useState(item?.location_id ?? '');
+  const [locationId, setLocationId] = useState(item?.location_id ?? initialLocationId ?? '');
   const [collectionId, setCollectionId] = useState(item?.collection_id ?? initialCollectionId ?? '');
   const [acquiredDate, setAcquiredDate] = useState(item?.acquired_date ?? prefill?.acquired_date ?? '');
   const [acquiredFrom, setAcquiredFrom] = useState(item?.acquired_from ?? '');
@@ -313,8 +315,7 @@ export function ItemForm({
             <textarea className="input min-h-[80px]" value={description} onChange={(e) => setDescription(e.target.value)} />
           </Field>
 
-          <fieldset className="card p-4 space-y-3">
-            <legend className="px-2 text-sm font-medium">Acquisition & value</legend>
+          <Section title="Acquisition & value" defaultOpen>
             <div className="grid sm:grid-cols-3 gap-3">
               <Field label="Acquired date">
                 <input type="date" className="input" value={acquiredDate} onChange={(e) => setAcquiredDate(e.target.value)} />
@@ -334,11 +335,10 @@ export function ItemForm({
                 </select>
               </Field>
             </div>
-          </fieldset>
+          </Section>
 
           {fields.length > 0 && (
-            <fieldset className="card p-4 space-y-3">
-              <legend className="px-2 text-sm font-medium capitalize">{category} details</legend>
+            <Section title={`${categoryLabel(category)} details`} defaultOpen={mode === 'edit'}>
               <div className="grid sm:grid-cols-2 gap-3">
                 {fields.map((f) => (
                   <Field key={f.key} label={f.label}>
@@ -368,11 +368,10 @@ export function ItemForm({
                   </Field>
                 ))}
               </div>
-            </fieldset>
+            </Section>
           )}
 
-          <fieldset className="card p-4 space-y-3">
-            <legend className="px-2 text-sm font-medium">Custom fields</legend>
+          <Section title="Custom fields" defaultOpen={customRows.length > 0}>
             <p className="text-xs text-brand-300">
               Capture anything the typed schema doesn&apos;t cover - e.g. <em>auction lot</em>, <em>display case</em>,
               <em> ribbon color</em>, <em>parent collection</em>. Stored as flexible key/value pairs and searchable.
@@ -421,7 +420,7 @@ export function ItemForm({
             >
               + Add custom field
             </button>
-          </fieldset>
+          </Section>
 
           <Field label="Notes">
             <textarea className="input min-h-[80px]" value={notes} onChange={(e) => setNotes(e.target.value)} />
@@ -448,4 +447,28 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       {children}
     </label>
   );
+}
+
+function Section({
+  title,
+  children,
+  defaultOpen = false,
+}: {
+  title: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
+  return (
+    <details className="card p-4 group" open={defaultOpen}>
+      <summary className="cursor-pointer list-none flex items-center justify-between text-sm font-medium select-none">
+        <span>{title}</span>
+        <span className="text-brand-400 text-xs group-open:rotate-180 transition-transform">▼</span>
+      </summary>
+      <div className="pt-3 space-y-3">{children}</div>
+    </details>
+  );
+}
+
+function categoryLabel(slug: CategorySlug) {
+  return CATEGORIES.find((c) => c.slug === slug)?.name ?? slug;
 }

@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import type { Household, MemberRole } from '@/lib/types';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
+import { DangerZone } from './DangerZone';
 
 interface MemberRow {
   user_id: string;
@@ -198,6 +199,8 @@ export function SettingsClient({ household, members, invites, myRole, myUserId }
           )}
         </section>
       )}
+
+      <DangerZone householdName={household.name} isOwner={isOwner} />
     </div>
   );
 }

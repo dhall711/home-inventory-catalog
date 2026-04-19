@@ -1,6 +1,8 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { requireHousehold } from '@/lib/household';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { cookies } from 'next/headers';
 import { formatCurrency, formatDate } from '@/lib/format';
 import { CategoryBreakdownChart } from '@/components/CategoryBreakdownChart';
 import type { Item } from '@/lib/types';
@@ -10,6 +12,20 @@ export const dynamic = 'force-dynamic';
 export default async function DashboardPage() {
   const household = await requireHousehold();
   const supabase = await createSupabaseServerClient();
+
+  // First-run wizard: brand-new households (zero items) get redirected once.
+  // Honor a "skipped" cookie so the user isn't trapped if they bounce back.
+  const cookieStore = await cookies();
+  const skipped = cookieStore.get('onboarding_skipped')?.value === '1';
+  if (!skipped) {
+    const { count: itemCount } = await supabase
+      .from('items')
+      .select('id', { count: 'exact', head: true })
+      .eq('household_id', household.id);
+    if ((itemCount ?? 0) === 0) {
+      redirect('/onboarding');
+    }
+  }
 
   const [{ count: totalItems }, valueAgg, recent, reviewing] = await Promise.all([
     supabase.from('items').select('id', { count: 'exact', head: true }).eq('household_id', household.id).eq('status', 'active'),
