@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 240, 244, 250;
+  --background-start-rgb: 23, 32, 51;
+  --background-end-rgb: 40, 61, 91;
+}
+
+html, body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(135deg,
+    rgb(var(--background-start-rgb)) 0%,
+    rgb(var(--background-end-rgb)) 100%);
+  min-height: 100vh;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(155, 182, 214, 0.4);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(155, 182, 214, 0.6);
+}
+
+@layer components {
+  .card {
+    @apply bg-brand-900/60 backdrop-blur border border-brand-700/40 rounded-lg shadow-lg;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-brand-400 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-brand-500 hover:bg-brand-400 text-white;
+  }
+  .btn-secondary {
+    @apply btn bg-brand-800 hover:bg-brand-700 text-white border border-brand-700;
+  }
+  .btn-ghost {
+    @apply btn bg-transparent hover:bg-brand-800/50 text-brand-100;
+  }
+  .input {
+    @apply w-full rounded-md bg-brand-950/80 border border-brand-700/60 px-3 py-2 text-sm text-brand-50 placeholder-brand-300/50 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent;
+  }
+  .label {
+    @apply block text-xs uppercase tracking-wide text-brand-200/80 mb-1;
+  }
+  .chip {
+    @apply inline-flex items-center rounded-full bg-brand-700/60 px-2.5 py-0.5 text-xs text-brand-50;
+  }
+}
