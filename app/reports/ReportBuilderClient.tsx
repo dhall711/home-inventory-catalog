@@ -37,8 +37,23 @@ export function ReportBuilderClient({ locations, collections, tags }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, filters, formats }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? 'Generate failed');
+      const text = await res.text();
+      let json: { error?: string; pdf_url?: string | null; csv_url?: string | null; item_count?: number } = {};
+      if (text) {
+        try {
+          json = JSON.parse(text);
+        } catch {
+          // Server returned a non-JSON body (e.g. HTML error page or a timeout cut us off).
+          throw new Error(
+            res.ok
+              ? 'Server returned an unexpected response.'
+              : `Server error ${res.status}: ${text.slice(0, 200) || res.statusText}`
+          );
+        }
+      }
+      if (!res.ok) {
+        throw new Error(json.error ?? `Generate failed (HTTP ${res.status})`);
+      }
       setResult(json);
       router.refresh();
     } catch (err) {
