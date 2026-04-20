@@ -5,6 +5,7 @@ import type { Household, MemberRole } from '@/lib/types';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import { DangerZone } from './DangerZone';
+import { SeedDemoPanel } from './SeedDemoPanel';
 
 interface MemberRow {
   user_id: string;
@@ -199,6 +200,8 @@ export function SettingsClient({ household, members, invites, myRole, myUserId }
           )}
         </section>
       )}
+
+      <SeedDemoPanel isOwner={isOwner} />
 
       <DangerZone householdName={household.name} isOwner={isOwner} />
     </div>
