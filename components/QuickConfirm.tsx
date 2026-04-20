@@ -58,6 +58,29 @@ export function QuickConfirm({
     setBusy(true);
     try {
       const valueNum = currentValue ? Number(currentValue) : null;
+      // The vision model frequently returns "" (or "unknown") for fields it
+      // can't read off the photo (acquired_date, serial_number, model, etc).
+      // Postgres rejects "" for date/numeric columns, which would fail the
+      // INSERT and lose every other field in the payload (including the
+      // photo URL the user just uploaded). Normalize aggressively here.
+      const txt = (v: unknown) => {
+        if (typeof v !== 'string') return v == null ? null : v;
+        const t = v.trim();
+        if (!t) return null;
+        if (/^(unknown|n\/a|none|null|undefined)$/i.test(t)) return null;
+        return t;
+      };
+      const num = (v: unknown) => {
+        if (v == null || v === '') return null;
+        const n = typeof v === 'number' ? v : Number(v);
+        return Number.isFinite(n) ? n : null;
+      };
+      const date = (v: unknown) => {
+        const t = txt(v);
+        if (typeof t !== 'string') return null;
+        // Accept YYYY-MM-DD, otherwise drop it - it would fail at the DB.
+        return /^\d{4}-\d{2}-\d{2}$/.test(t) ? t : null;
+      };
       const payload = {
         name: name.trim(),
         category,
@@ -70,13 +93,13 @@ export function QuickConfirm({
         primary_photo_thumb_url: photoThumbUrl || null,
         // Carry the rest of the AI draft so nothing's lost when the user
         // skips the detail form: description, manufacturer, model, etc.
-        description: prefill?.description ?? null,
-        manufacturer: prefill?.manufacturer ?? null,
-        model: prefill?.model ?? null,
-        serial_number: prefill?.serial_number ?? null,
-        condition: prefill?.condition ?? null,
-        acquired_date: prefill?.acquired_date ?? null,
-        acquired_price: prefill?.acquired_price ?? null,
+        description: txt(prefill?.description),
+        manufacturer: txt(prefill?.manufacturer),
+        model: txt(prefill?.model),
+        serial_number: txt(prefill?.serial_number),
+        condition: txt(prefill?.condition),
+        acquired_date: date(prefill?.acquired_date),
+        acquired_price: num(prefill?.acquired_price),
         ai_raw_json: prefill ?? null,
         ai_confidence: prefill?.confidence ?? null,
         attributes: prefill?.attributes ?? {},

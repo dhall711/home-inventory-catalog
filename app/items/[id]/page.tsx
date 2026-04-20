@@ -7,6 +7,7 @@ import { formatCurrency, formatDate } from '@/lib/format';
 import { ValueHistoryChart } from '@/components/ValueHistoryChart';
 import { AttachmentsPanel } from '@/components/AttachmentsPanel';
 import { ItemActions } from '@/components/ItemActions';
+import { ItemPhotosWithScan } from '@/components/ItemPhotosWithScan';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,20 +35,26 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
 
       <div className="grid lg:grid-cols-[360px_1fr] gap-6">
         <div className="space-y-4">
-          <div className="card aspect-square overflow-hidden bg-brand-950/40">
-            {item.primary_photo_url ? (
-              <img src={item.primary_photo_url} alt={item.name} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-brand-400">No photo</div>
-            )}
-          </div>
-          {photos.length > 1 && (
-            <div className="grid grid-cols-4 gap-2">
-              {photos.map((p) => (
-                <img key={p.id} src={p.thumb_url ?? p.url} alt="" className="w-full aspect-square object-cover rounded border border-brand-800" />
-              ))}
-            </div>
-          )}
+          <ItemPhotosWithScan
+            itemId={item.id}
+            itemName={item.name}
+            initialPhotos={photos}
+            fallbackPrimary={{
+              url: item.primary_photo_url,
+              thumb_url: item.primary_photo_thumb_url,
+            }}
+            itemSnapshot={{
+              acquired_date: item.acquired_date,
+              acquired_from: item.acquired_from,
+              acquired_price: item.acquired_price,
+              current_value: item.current_value,
+              manufacturer: item.manufacturer,
+              model: item.model,
+              serial_number: item.serial_number,
+              notes: item.notes,
+            }}
+            category={item.category}
+          />
 
           <div className="card p-4 space-y-2">
             <div className="text-2xl font-semibold text-accent">
@@ -66,7 +73,21 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
             </div>
           )}
 
-          <AttachmentsPanel itemId={item.id} initial={attachments} />
+          <AttachmentsPanel
+            itemId={item.id}
+            initial={attachments}
+            itemSnapshot={{
+              acquired_date: item.acquired_date,
+              acquired_from: item.acquired_from,
+              acquired_price: item.acquired_price,
+              current_value: item.current_value,
+              manufacturer: item.manufacturer,
+              model: item.model,
+              serial_number: item.serial_number,
+              notes: item.notes,
+            }}
+            category={item.category}
+          />
         </div>
 
         <div className="space-y-4">

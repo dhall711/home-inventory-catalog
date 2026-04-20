@@ -1,3 +1,4 @@
+import sharp from 'sharp';
 import { createSupabaseServerClient, createSupabaseServiceRoleClient } from '@/lib/supabase/server';
 
 export const PHOTO_BUCKET = 'item-photos';
@@ -54,4 +55,62 @@ export async function uploadServerFile(opts: {
   });
   if (error) throw error;
   return supabase.storage.from(opts.bucket).getPublicUrl(opts.path).data.publicUrl;
+}
+
+export interface UploadedPhoto {
+  url: string;
+  thumb_url: string;
+  path: string;
+  thumb_path: string;
+}
+
+/**
+ * Resize a photo (auto-orient via EXIF), upload both the full-size JPEG
+ * (max 2000px) and a 400x400 cover thumbnail to the item-photos bucket,
+ * and return their public URLs. Used by both the standalone photo
+ * upload endpoint and the per-item additional-photos endpoint.
+ */
+export async function uploadItemPhoto(opts: {
+  householdId: string;
+  buffer: Buffer;
+  filename: string;
+}): Promise<UploadedPhoto> {
+  const supa = createSupabaseServiceRoleClient();
+  const baseName = opts.filename || 'photo.jpg';
+  const fullPath = buildPhotoPath(opts.householdId, baseName.replace(/\.[^.]+$/, '.jpg'));
+  const thumbPath = fullPath.replace(/\.jpg$/, '.thumb.jpg');
+
+  const fullJpg = await sharp(opts.buffer)
+    .rotate()
+    .resize({ width: 2000, withoutEnlargement: true })
+    .jpeg({ quality: 85 })
+    .toBuffer();
+
+  const thumbJpg = await sharp(opts.buffer)
+    .rotate()
+    .resize({ width: 400, height: 400, fit: 'cover' })
+    .jpeg({ quality: 75 })
+    .toBuffer();
+
+  const up1 = await supa.storage.from(PHOTO_BUCKET).upload(fullPath, fullJpg, {
+    contentType: 'image/jpeg',
+    upsert: false,
+  });
+  if (up1.error) throw up1.error;
+
+  const up2 = await supa.storage.from(PHOTO_BUCKET).upload(thumbPath, thumbJpg, {
+    contentType: 'image/jpeg',
+    upsert: false,
+  });
+  if (up2.error) throw up2.error;
+
+  const { data: full } = supa.storage.from(PHOTO_BUCKET).getPublicUrl(fullPath);
+  const { data: thumb } = supa.storage.from(PHOTO_BUCKET).getPublicUrl(thumbPath);
+
+  return {
+    url: full.publicUrl,
+    thumb_url: thumb.publicUrl,
+    path: fullPath,
+    thumb_path: thumbPath,
+  };
 }

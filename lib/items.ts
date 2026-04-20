@@ -213,3 +213,61 @@ export async function upsertItemAttributes(
   const supabase = await createSupabaseServerClient();
   await supabase.from(table).upsert({ item_id: itemId, ...attributes });
 }
+
+// ---------------------------------------------------------------------------
+// Field normalization for item create/update
+// ---------------------------------------------------------------------------
+// Columns we are willing to write from a request body. Anything else is
+// silently dropped so the AI (or future client tweaks) can't crash an INSERT
+// by sending a stray field that isn't on the items table.
+const ALLOWED_ITEM_FIELDS = new Set([
+  'category',
+  'name',
+  'description',
+  'manufacturer',
+  'model',
+  'serial_number',
+  'condition',
+  'status',
+  'location_id',
+  'collection_id',
+  'acquired_date',
+  'acquired_from',
+  'acquired_price',
+  'current_value',
+  'current_value_source',
+  'current_value_updated_at',
+  'primary_photo_url',
+  'primary_photo_thumb_url',
+  'notes',
+  'ai_confidence',
+  'ai_raw_json',
+  'custom_attributes',
+]);
+
+const DATE_FIELDS = new Set(['acquired_date']);
+const NUMERIC_FIELDS = new Set(['acquired_price', 'current_value', 'ai_confidence']);
+
+/**
+ * Coerce empty strings ("") to null on date/numeric columns and drop unknown
+ * keys. The vision model frequently returns "" for fields it can't read off
+ * the photo, which Postgres rejects with "invalid input syntax for type
+ * date". A failed INSERT would lose every other field in the payload
+ * (including the photo the user just uploaded) - this is the safety net.
+ */
+export function normalizeItemFields(input: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(input)) {
+    if (!ALLOWED_ITEM_FIELDS.has(k)) continue;
+    if (v === '' && (DATE_FIELDS.has(k) || NUMERIC_FIELDS.has(k))) {
+      out[k] = null;
+      continue;
+    }
+    if (DATE_FIELDS.has(k) && typeof v === 'string' && !/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+      out[k] = null;
+      continue;
+    }
+    out[k] = v;
+  }
+  return out;
+}

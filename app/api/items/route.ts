@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireHousehold } from '@/lib/household';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { listItems, parseItemFilters, upsertItemAttributes } from '@/lib/items';
+import { listItems, normalizeItemFields, parseItemFilters, upsertItemAttributes } from '@/lib/items';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,12 +17,14 @@ export async function POST(request: Request) {
   const household = await requireHousehold();
   const supabase = await createSupabaseServerClient();
   const body = await request.json();
-  const { attributes, tags, initial_value, ...itemFields } = body as {
+  const { attributes, tags, initial_value, ...rest } = body as {
     attributes?: Record<string, unknown>;
     tags?: string[];
     initial_value?: number;
     [k: string]: unknown;
   };
+
+  const itemFields = normalizeItemFields(rest);
 
   const { data: created, error } = await supabase
     .from('items')
@@ -33,7 +35,32 @@ export async function POST(request: Request) {
     .select('*')
     .single();
   if (error || !created) {
+    console.error('items insert failed', {
+      message: error?.message,
+      details: error?.details,
+      hint: error?.hint,
+      code: error?.code,
+      keys: Object.keys(itemFields),
+    });
     return NextResponse.json({ error: error?.message ?? 'Insert failed' }, { status: 400 });
+  }
+
+  // Mirror the primary photo into item_photos so the gallery on the detail
+  // page (which iterates item_photos) shows it, and we have a normalized
+  // record of every uploaded photo.
+  if (itemFields.primary_photo_url) {
+    const { error: photoErr } = await supabase.from('item_photos').insert({
+      item_id: created.id,
+      url: itemFields.primary_photo_url as string,
+      thumb_url: (itemFields.primary_photo_thumb_url as string | null) ?? null,
+      sort_order: 0,
+      is_primary: true,
+    });
+    if (photoErr) {
+      // Non-fatal: items.primary_photo_url is the source of truth for the
+      // hero image, so the user still sees the photo on cards and detail.
+      console.error('item_photos insert failed (non-fatal)', photoErr.message);
+    }
   }
 
   if (attributes && Object.keys(attributes).length > 0) {

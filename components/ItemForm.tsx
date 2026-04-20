@@ -237,14 +237,34 @@ export function ItemForm({
               <div className="text-brand-400 text-sm">No photo</div>
             )}
           </div>
-          <input
-            type="file"
-            accept="image/*"
-            capture="environment"
-            onChange={handlePhotoUpload}
-            disabled={uploading}
-            className="text-sm"
-          />
+          <div className="space-y-1">
+            <label className="label block">
+              {photoUrl ? 'Replace photo (optional)' : 'Add a photo'}
+            </label>
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handlePhotoUpload}
+              disabled={uploading}
+              className="text-sm"
+            />
+            {photoUrl && !uploading && (
+              <div className="flex items-center gap-2 text-xs text-brand-300">
+                <span className="text-emerald-300">✓ Photo attached</span>
+                <button
+                  type="button"
+                  className="text-brand-400 hover:text-red-300 underline"
+                  onClick={() => {
+                    setPhotoUrl('');
+                    setPhotoThumbUrl('');
+                  }}
+                >
+                  Remove
+                </button>
+              </div>
+            )}
+          </div>
           {uploading && <div className="text-xs text-brand-300">Uploading & generating thumbnail...</div>}
           {prefill?.confidence != null && (
             <div className="text-xs text-brand-300">
