@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, type ReactNode } from 'react';
+import { useState, type ReactNode, type ComponentPropsWithoutRef } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
   ITEM_LINK_REGEX,
   type ChatActionRow,
@@ -22,37 +24,134 @@ interface Props {
 }
 
 /**
- * Parses [[Display Name|item_id]] markup into clickable Next.js links.
- * Same convention the wine app's chat used.
+ * Convert our custom [[Display Name|item_id]] markup into standard markdown
+ * links pointing at /items/<id>. The internal-link Next.js handling happens
+ * in the custom `a` renderer below.
  */
-function parseInlineLinks(text: string): ReactNode[] {
-  const out: ReactNode[] = [];
-  let lastIdx = 0;
-  let key = 0;
-  // Reset regex state - it's a global so prior callers can leave lastIndex set.
+function preprocessItemLinks(text: string): string {
   const re = new RegExp(ITEM_LINK_REGEX.source, ITEM_LINK_REGEX.flags);
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(text)) !== null) {
-    if (m.index > lastIdx) out.push(text.slice(lastIdx, m.index));
-    const [, label, id] = m;
-    out.push(
-      <Link
-        key={key++}
-        href={`/items/${id}`}
-        className="text-brand-300 underline decoration-dotted underline-offset-2 hover:text-brand-100"
-        title="Open item"
-      >
-        {label}
-      </Link>
-    );
-    lastIdx = m.index + m[0].length;
-  }
-  if (lastIdx < text.length) out.push(text.slice(lastIdx));
-  return out.length > 0 ? out : [text];
+  return text.replace(re, (_match, label: string, id: string) => {
+    const safeLabel = label.replace(/[[\]]/g, '');
+    return `[${safeLabel}](/items/${id})`;
+  });
 }
 
+/**
+ * Custom anchor renderer: internal `/items/...` (and other relative) links
+ * get a Next.js <Link> for client-side navigation; external links open in a
+ * new tab with rel=noreferrer.
+ */
+function MarkdownLink({ href, children, ...rest }: ComponentPropsWithoutRef<'a'>) {
+  const url = href ?? '#';
+  const isInternal = url.startsWith('/');
+  const className = 'text-brand-300 underline decoration-dotted underline-offset-2 hover:text-brand-100';
+  if (isInternal) {
+    return (
+      <Link href={url} className={className} title="Open item">
+        {children}
+      </Link>
+    );
+  }
+  return (
+    <a href={url} target="_blank" rel="noreferrer noopener" className={className} {...rest}>
+      {children}
+    </a>
+  );
+}
+
+const MARKDOWN_COMPONENTS = {
+  a: MarkdownLink,
+  p: (props: ComponentPropsWithoutRef<'p'>) => (
+    <p {...props} className="text-sm leading-relaxed" />
+  ),
+  ul: (props: ComponentPropsWithoutRef<'ul'>) => (
+    <ul {...props} className="list-disc pl-5 space-y-1 text-sm" />
+  ),
+  ol: (props: ComponentPropsWithoutRef<'ol'>) => (
+    <ol {...props} className="list-decimal pl-5 space-y-1 text-sm" />
+  ),
+  li: (props: ComponentPropsWithoutRef<'li'>) => (
+    <li {...props} className="leading-relaxed" />
+  ),
+  h1: (props: ComponentPropsWithoutRef<'h1'>) => (
+    <h1 {...props} className="text-lg font-semibold mt-2" />
+  ),
+  h2: (props: ComponentPropsWithoutRef<'h2'>) => (
+    <h2 {...props} className="text-base font-semibold mt-2" />
+  ),
+  h3: (props: ComponentPropsWithoutRef<'h3'>) => (
+    <h3 {...props} className="text-sm font-semibold mt-2 text-brand-100" />
+  ),
+  h4: (props: ComponentPropsWithoutRef<'h4'>) => (
+    <h4 {...props} className="text-sm font-semibold mt-2 text-brand-200" />
+  ),
+  strong: (props: ComponentPropsWithoutRef<'strong'>) => (
+    <strong {...props} className="font-semibold text-brand-50" />
+  ),
+  em: (props: ComponentPropsWithoutRef<'em'>) => (
+    <em {...props} className="italic" />
+  ),
+  hr: (props: ComponentPropsWithoutRef<'hr'>) => (
+    <hr {...props} className="my-2 border-brand-800" />
+  ),
+  blockquote: (props: ComponentPropsWithoutRef<'blockquote'>) => (
+    <blockquote
+      {...props}
+      className="border-l-2 border-brand-700 pl-3 text-brand-200 italic"
+    />
+  ),
+  code: ({ className, children, ...rest }: ComponentPropsWithoutRef<'code'>) => {
+    // Block-level code (fenced) ships with a language-* className from
+    // remark; inline code does not. Style them differently.
+    const isBlock = !!className;
+    if (isBlock) {
+      return (
+        <code
+          className="block p-2 rounded bg-brand-950/60 border border-brand-800 text-[12px] text-brand-200 overflow-x-auto"
+          {...rest}
+        >
+          {children}
+        </code>
+      );
+    }
+    return (
+      <code
+        className="px-1 py-0.5 rounded bg-brand-950/60 border border-brand-800 text-[12px] text-brand-200"
+        {...rest}
+      >
+        {children}
+      </code>
+    );
+  },
+  pre: (props: ComponentPropsWithoutRef<'pre'>) => (
+    // The <code> child already supplies the styling; pre just provides the
+    // block container.
+    <pre {...props} className="my-2" />
+  ),
+  table: (props: ComponentPropsWithoutRef<'table'>) => (
+    <div className="overflow-x-auto my-2">
+      <table {...props} className="w-full text-xs border border-brand-800" />
+    </div>
+  ),
+  thead: (props: ComponentPropsWithoutRef<'thead'>) => (
+    <thead {...props} className="bg-brand-900/60" />
+  ),
+  th: (props: ComponentPropsWithoutRef<'th'>) => (
+    <th {...props} className="text-left px-2 py-1 border border-brand-800 font-semibold" />
+  ),
+  td: (props: ComponentPropsWithoutRef<'td'>) => (
+    <td {...props} className="px-2 py-1 border border-brand-800 align-top" />
+  ),
+};
+
 function TextBlock({ block }: { block: ChatTextBlock }) {
-  return <p className="whitespace-pre-wrap text-sm leading-relaxed">{parseInlineLinks(block.text)}</p>;
+  return (
+    <div className="text-sm leading-relaxed space-y-2">
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
+        {preprocessItemLinks(block.text)}
+      </ReactMarkdown>
+    </div>
+  );
 }
 
 function ToolUseChip({ block, action }: { block: ChatToolUseBlock; action?: ChatActionRow }) {
