@@ -105,6 +105,13 @@ export function QuickConfirm({
   // can show a thumbnail. After the item is created we link them via
   // POST /api/items/[id]/photos with the already-uploaded URLs.
   const [pendingPhotos, setPendingPhotos] = useState<PendingPhoto[]>([]);
+  // Photo IDs currently being scanned by the AI (for spinner state).
+  const [scanningPhotoId, setScanningPhotoId] = useState<string | null>(null);
+  // Pending close-up scan extraction awaiting user confirmation.
+  const [confirmScan, setConfirmScan] = useState<{
+    photoId: string;
+    extraction: DocumentExtraction;
+  } | null>(null);
   // Fields that came from documents (or that the user filled via doc-confirm
   // dialog) and that aren't in the 4-field UI. Merged into the save payload.
   const [extraDraft, setExtraDraft] = useState<Record<string, unknown>>({});
@@ -326,6 +333,59 @@ export function QuickConfirm({
     setPendingPhotos((arr) => arr.filter((p) => p.id !== id));
   }
 
+  async function handleScanPhoto(photo: PendingPhoto) {
+    if (!photo.url) return;
+    setError(null);
+    setScanningPhotoId(photo.id);
+    try {
+      const res = await fetch('/api/scan-photo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          photo_url: photo.url,
+          context: {
+            name: name.trim() || prefill?.name || null,
+            manufacturer: currentSnapshot.manufacturer,
+            model: currentSnapshot.model,
+            category,
+          },
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? 'Scan failed');
+      const extraction = json.extraction as DocumentExtraction;
+      const hasAny = Boolean(
+        extraction.manufacturer ||
+          extraction.model ||
+          extraction.serial_number ||
+          extraction.warranty_until ||
+          extraction.notes
+      );
+      if (!hasAny) {
+        setError("AI couldn't read anything useful from this close-up.");
+        return;
+      }
+      setConfirmScan({ photoId: photo.id, extraction });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Scan failed');
+    } finally {
+      setScanningPhotoId(null);
+    }
+  }
+
+  function applyScan(result: DocumentApplyResult) {
+    // Same merge logic as document apply, minus value-history (close-up
+    // scans never produce a price).
+    const f = { ...result.fields };
+    if (typeof f.current_value === 'number') {
+      setCurrentValue(String(f.current_value));
+    }
+    setExtraDraft((prev) => ({ ...prev, ...f }));
+    if (Object.keys(result.attributes).length > 0) {
+      setExtraAttributes((prev) => ({ ...prev, ...result.attributes }));
+    }
+  }
+
   async function save(then: 'add_another' | 'done') {
     setError(null);
     if (!name.trim()) {
@@ -544,34 +604,61 @@ export function QuickConfirm({
         </div>
         {pendingPhotos.length > 0 && (
           <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
-            {pendingPhotos.map((p) => (
-              <div
-                key={p.id}
-                className="relative aspect-square rounded bg-brand-950 border border-brand-800 overflow-hidden group"
-                title={p.name}
-              >
-                {p.status === 'ready' && p.thumb_url ? (
-                  <img src={p.thumb_url} alt={p.name} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-[10px] text-brand-300 text-center px-1">
-                    {p.status === 'uploading' && 'Uploading…'}
-                    {p.status === 'error' && (
-                      <span className="text-red-300">Error</span>
-                    )}
-                  </div>
-                )}
-                <button
-                  type="button"
-                  className="absolute top-1 right-1 bg-black/60 hover:bg-red-700 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
-                  onClick={() => removePendingPhoto(p.id)}
-                  title="Remove"
-                  aria-label="Remove photo"
+            {pendingPhotos.map((p) => {
+              const isScanning = scanningPhotoId === p.id;
+              return (
+                <div
+                  key={p.id}
+                  className="relative aspect-square rounded bg-brand-950 border border-brand-800 overflow-hidden group"
+                  title={p.name}
                 >
-                  ✕
-                </button>
-              </div>
-            ))}
+                  {p.status === 'ready' && p.thumb_url ? (
+                    <img src={p.thumb_url} alt={p.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-[10px] text-brand-300 text-center px-1">
+                      {p.status === 'uploading' && 'Uploading…'}
+                      {p.status === 'error' && (
+                        <span className="text-red-300">Error</span>
+                      )}
+                    </div>
+                  )}
+                  {/* Hover overlay with Scan button. Mirrors the gallery
+                      panel on the detail page so the workflow is the same. */}
+                  {p.status === 'ready' && (
+                    <div
+                      className={`absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-1 transition ${
+                        isScanning ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        className="w-full text-[10px] text-accent hover:text-white disabled:opacity-50"
+                        onClick={() => handleScanPhoto(p)}
+                        disabled={isScanning || busy}
+                        title="Scan this close-up for serial / model / manufacturer"
+                      >
+                        {isScanning ? 'Reading…' : 'Scan'}
+                      </button>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    className="absolute top-1 right-1 bg-black/60 hover:bg-red-700 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
+                    onClick={() => removePendingPhoto(p.id)}
+                    title="Remove"
+                    aria-label="Remove photo"
+                  >
+                    ✕
+                  </button>
+                </div>
+              );
+            })}
           </div>
+        )}
+        {pendingPhotos.some((p) => p.status === 'ready') && (
+          <p className="text-[11px] text-brand-400">
+            Hover a thumbnail and click <span className="text-accent">Scan</span> to pull the serial number, model or manufacturer off a close-up.
+          </p>
         )}
       </div>
 
@@ -691,6 +778,21 @@ export function QuickConfirm({
           onApply={(result) => {
             handleApply(confirmDoc.id, result);
             setConfirmDoc(null);
+          }}
+        />
+      )}
+
+      {confirmScan && (
+        <DocumentApplyDialog
+          mode="callback"
+          kind="manual"
+          category={category}
+          current={currentSnapshot}
+          extraction={confirmScan.extraction}
+          onClose={() => setConfirmScan(null)}
+          onApply={(result) => {
+            applyScan(result);
+            setConfirmScan(null);
           }}
         />
       )}
