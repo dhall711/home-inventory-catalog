@@ -3,7 +3,20 @@ import { CATEGORIES, CATEGORY_ATTRIBUTES, type CategorySlug } from '@/lib/types'
 
 export const anthropic = new Anthropic();
 
-export const VISION_MODEL = 'claude-sonnet-4-20250514';
+/**
+ * Model used for vision + reasoning tasks (item identification, batch
+ * detection, value estimation). Defaults to Claude Opus 4.6 for best
+ * recognition / reasoning quality. Override at the env layer if you
+ * need to fall back to a faster/cheaper model:
+ *
+ *   ANTHROPIC_MODEL=claude-sonnet-4-5    # cheaper, faster, still strong
+ *   ANTHROPIC_MODEL=claude-opus-4-6      # default, best quality
+ *
+ * Cost note: Opus 4.6 is ~$5/MTok in, ~$25/MTok out — about 5x Sonnet.
+ * Most weight goes to image input tokens during batch capture, so plan
+ * accordingly if a household uploads thousands of photos at once.
+ */
+export const VISION_MODEL = process.env.ANTHROPIC_MODEL || 'claude-opus-4-6';
 
 export function buildItemSchemaPrompt(): string {
   const lines: string[] = [];
