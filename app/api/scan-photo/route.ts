@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireHousehold } from '@/lib/household';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { anthropic, parseJsonResponse, VISION_MODEL } from '@/lib/ai';
-import { normalizeReceipt, type ReceiptExtraction } from '@/lib/ai-receipt';
+import { normalizeDocument, type DocumentExtraction } from '@/lib/ai-document';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -15,8 +15,8 @@ export const maxDuration = 60;
  * Useful for close-up "spec plate" or "serial tag" photos that the user
  * uploads alongside the main hero shot.
  *
- * Returns the same ReceiptExtraction shape so the existing
- * ReceiptApplyDialog can render the confirmation UI.
+ * Returns the same DocumentExtraction shape so the existing
+ * DocumentApplyDialog can render the confirmation UI.
  */
 export async function POST(request: Request) {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -79,7 +79,7 @@ Important:
 - Differentiate model number vs serial number (model is shorter and shared across units; serial is unique per unit and often longer).
 - "warranty_until" should only be set if a clear expiry date is printed.`;
 
-  let extraction: ReceiptExtraction;
+  let extraction: DocumentExtraction;
   try {
     const response = await anthropic.messages.create({
       model: VISION_MODEL,
@@ -99,9 +99,9 @@ Important:
       return NextResponse.json({ error: 'No text response from AI' }, { status: 502 });
     }
     const raw = parseJsonResponse<Record<string, unknown>>(textBlock.text);
-    // Reuse the receipt normalizer so the response shape matches what
-    // ReceiptApplyDialog expects. Receipt-only fields stay null.
-    extraction = normalizeReceipt(raw);
+    // Reuse the document normalizer so the response shape matches what
+    // DocumentApplyDialog expects. Receipt/appraisal-only fields stay null.
+    extraction = normalizeDocument(raw);
   } catch (err) {
     console.error('scan-photo error', err);
     return NextResponse.json(

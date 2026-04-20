@@ -2,21 +2,26 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import type { AttachmentKind, ItemAttachment } from '@/lib/types';
-import type { ReceiptExtraction } from '@/lib/ai-receipt';
+import type { AttachmentKind, ItemAttachment, CategorySlug } from '@/lib/types';
+import type { DocumentExtraction } from '@/lib/ai-document';
+import { hasAnyExtraction } from '@/lib/ai-document';
 import { formatDate } from '@/lib/format';
-import { ReceiptApplyDialog, type ItemSnapshot } from './ReceiptApplyDialog';
+import { DocumentApplyDialog, type ItemSnapshot } from './DocumentApplyDialog';
 
 const KINDS: AttachmentKind[] = ['receipt', 'appraisal', 'manual', 'other'];
 
-// Kinds we know how to AI-extract today. Appraisals could come next.
-const EXTRACTABLE: AttachmentKind[] = ['receipt'];
+const KIND_HINT: Record<AttachmentKind, string> = {
+  receipt: 'Auto-scanned for vendor, date, price, serial & model. You confirm before anything is saved.',
+  appraisal: 'Auto-scanned for appraised value, appraiser, date, condition, and any artist/medium/dimensions noted.',
+  manual: 'Auto-scanned for manufacturer, model, serial number (if you wrote it on the warranty card), and warranty expiry.',
+  other: 'Auto-scanned for any item details (price, value, IDs) the document happens to contain.',
+};
 
 interface Props {
   itemId: string;
   initial: ItemAttachment[];
   itemSnapshot?: ItemSnapshot;
-  category?: string | null;
+  category?: CategorySlug | string | null;
 }
 
 export function AttachmentsPanel({ itemId, initial, itemSnapshot, category }: Props) {
@@ -26,12 +31,13 @@ export function AttachmentsPanel({ itemId, initial, itemSnapshot, category }: Pr
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [extractingId, setExtractingId] = useState<string | null>(null);
-  const [pendingExtraction, setPendingExtraction] = useState<{
+  const [pending, setPending] = useState<{
     attachmentId: string;
-    extraction: ReceiptExtraction;
+    kind: AttachmentKind;
+    extraction: DocumentExtraction;
   } | null>(null);
 
-  async function runExtraction(attachmentId: string) {
+  async function runExtraction(attachmentId: string, attKind: AttachmentKind) {
     if (!itemSnapshot) {
       setError('Cannot extract: missing item context.');
       return;
@@ -39,17 +45,19 @@ export function AttachmentsPanel({ itemId, initial, itemSnapshot, category }: Pr
     setError(null);
     setExtractingId(attachmentId);
     try {
-      const res = await fetch('/api/extract-receipt', {
+      const res = await fetch('/api/extract-attachment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ attachment_id: attachmentId }),
+        body: JSON.stringify({ attachment_id: attachmentId, kind: attKind }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? 'Extract failed');
-      setPendingExtraction({
-        attachmentId,
-        extraction: json.extraction as ReceiptExtraction,
-      });
+      const extraction = json.extraction as DocumentExtraction;
+      if (!hasAnyExtraction(extraction)) {
+        setError("AI couldn't read anything useful from this document.");
+        return;
+      }
+      setPending({ attachmentId, kind: (json.kind as AttachmentKind) ?? attKind, extraction });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Extract failed');
     } finally {
@@ -73,10 +81,11 @@ export function AttachmentsPanel({ itemId, initial, itemSnapshot, category }: Pr
       const newAttachment = json.attachment as ItemAttachment;
       setItems((arr) => [newAttachment, ...arr]);
       router.refresh();
-      // Auto-extract for receipts (and other future supported kinds) so
-      // the user gets the confirm dialog without an extra click.
-      if (EXTRACTABLE.includes(kind) && itemSnapshot) {
-        await runExtraction(newAttachment.id);
+      // Auto-extract for every kind so the user gets the confirm dialog
+      // without an extra click. The dialog itself handles the case where
+      // the model didn't find anything.
+      if (itemSnapshot) {
+        await runExtraction(newAttachment.id, kind);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed');
@@ -111,14 +120,13 @@ export function AttachmentsPanel({ itemId, initial, itemSnapshot, category }: Pr
         </select>
         <input type="file" onChange={handleUpload} disabled={busy} className="text-xs flex-1" />
       </div>
-      {kind === 'receipt' && itemSnapshot && (
+      {itemSnapshot && (
         <p className="text-[11px] text-brand-400">
-          Receipts are auto-scanned for vendor, date, price, serial &amp; model.
-          You confirm before anything is saved.
+          {KIND_HINT[kind]}
         </p>
       )}
       {busy && <div className="text-xs text-brand-300">Uploading...</div>}
-      {extractingId && <div className="text-xs text-brand-300">Reading receipt with AI...</div>}
+      {extractingId && <div className="text-xs text-brand-300">Reading with AI...</div>}
       {error && <div className="text-xs text-red-300">{error}</div>}
       {items.length === 0 ? (
         <div className="text-xs text-brand-400">None yet.</div>
@@ -138,12 +146,12 @@ export function AttachmentsPanel({ itemId, initial, itemSnapshot, category }: Pr
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
-                {EXTRACTABLE.includes(a.kind) && itemSnapshot && (
+                {itemSnapshot && (
                   <button
                     type="button"
                     className="text-xs text-accent hover:opacity-80 disabled:opacity-50"
                     disabled={extractingId === a.id}
-                    onClick={() => runExtraction(a.id)}
+                    onClick={() => runExtraction(a.id, a.kind)}
                   >
                     {extractingId === a.id ? 'Reading…' : 'Extract'}
                   </button>
@@ -160,13 +168,14 @@ export function AttachmentsPanel({ itemId, initial, itemSnapshot, category }: Pr
         </ul>
       )}
 
-      {pendingExtraction && itemSnapshot && (
-        <ReceiptApplyDialog
+      {pending && itemSnapshot && (
+        <DocumentApplyDialog
           itemId={itemId}
+          kind={pending.kind}
           category={category ?? null}
           current={itemSnapshot}
-          extraction={pendingExtraction.extraction}
-          onClose={() => setPendingExtraction(null)}
+          extraction={pending.extraction}
+          onClose={() => setPending(null)}
           onApplied={() => router.refresh()}
         />
       )}

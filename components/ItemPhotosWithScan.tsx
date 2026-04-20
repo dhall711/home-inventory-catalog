@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import type { ItemPhoto } from '@/lib/types';
-import type { ReceiptExtraction } from '@/lib/ai-receipt';
+import type { CategorySlug, ItemPhoto } from '@/lib/types';
+import type { DocumentExtraction } from '@/lib/ai-document';
+import { hasAnyExtraction } from '@/lib/ai-document';
 import { ItemPhotosPanel } from './ItemPhotosPanel';
-import { ReceiptApplyDialog, type ItemSnapshot } from './ReceiptApplyDialog';
+import { DocumentApplyDialog, type ItemSnapshot } from './DocumentApplyDialog';
 
 interface Props {
   itemId: string;
@@ -12,7 +13,7 @@ interface Props {
   initialPhotos: ItemPhoto[];
   fallbackPrimary: { url: string | null; thumb_url: string | null };
   itemSnapshot: ItemSnapshot;
-  category: string | null;
+  category: CategorySlug | string | null;
 }
 
 /**
@@ -20,7 +21,8 @@ interface Props {
  * scanner. When the user clicks "Scan" on a thumbnail (typically a
  * close-up of a serial-number tag or spec plate), we hit /api/scan-photo
  * and surface the result through the same per-field confirmation dialog
- * the receipt extraction uses.
+ * the document extraction uses. We treat close-ups as "manual"-kind so
+ * the dialog doesn't pull in receipt or appraisal price defaults.
  */
 export function ItemPhotosWithScan({
   itemId,
@@ -32,7 +34,7 @@ export function ItemPhotosWithScan({
 }: Props) {
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState<{ extraction: ReceiptExtraction } | null>(null);
+  const [pending, setPending] = useState<{ extraction: DocumentExtraction } | null>(null);
 
   async function handleScan(photo: ItemPhoto) {
     setError(null);
@@ -45,16 +47,8 @@ export function ItemPhotosWithScan({
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? 'Scan failed');
-      const extraction = json.extraction as ReceiptExtraction;
-      // If the model returned absolutely nothing applicable, surface a
-      // friendly message rather than opening an empty dialog.
-      const hasAnything =
-        extraction.manufacturer ||
-        extraction.model ||
-        extraction.serial_number ||
-        extraction.warranty_until ||
-        extraction.notes;
-      if (!hasAnything) {
+      const extraction = json.extraction as DocumentExtraction;
+      if (!hasAnyExtraction(extraction)) {
         setError("AI couldn't read anything useful from this close-up.");
         return;
       }
@@ -78,8 +72,9 @@ export function ItemPhotosWithScan({
       {scanning && <div className="text-xs text-brand-300">Reading close-up with AI…</div>}
       {error && <div className="text-xs text-red-300">{error}</div>}
       {pending && (
-        <ReceiptApplyDialog
+        <DocumentApplyDialog
           itemId={itemId}
+          kind="manual"
           category={category}
           current={itemSnapshot}
           extraction={pending.extraction}
