@@ -95,6 +95,7 @@ export function Sidebar({ householdName, itemCount, collections, locations, tags
             active={pathname === '/items'}
           />
           <NavItem href="/batch" label="Batch capture" active={pathname.startsWith('/batch')} />
+          <NavItem href="/chat" label="Chat" active={pathname.startsWith('/chat')} />
           <Link
             href="/items/new"
             className="block mt-2 mb-3 text-center btn-primary"

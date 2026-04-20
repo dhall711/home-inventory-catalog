@@ -2,6 +2,7 @@ import { getCurrentUser, getCurrentHousehold } from '@/lib/household';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
+import { ChatWidget } from './ChatWidget';
 
 /**
  * Server-side wrapper that gathers all the live counts/lists the sidebar
@@ -100,6 +101,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+      <ChatWidget />
     </div>
   );
 }

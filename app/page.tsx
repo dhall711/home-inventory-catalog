@@ -75,6 +75,29 @@ export default async function DashboardPage() {
 
       <section className="card p-5">
         <div className="flex items-center justify-between mb-3">
+          <h2 className="font-medium">Ask the assistant</h2>
+          <Link href="/chat" className="text-sm text-brand-300 hover:text-brand-100">Open chat &rarr;</Link>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-2">
+          {[
+            'What is my most valuable item?',
+            'How is my inventory broken down by category?',
+            'Which items are missing photos or values?',
+            'Summarize my collections.',
+          ].map((q) => (
+            <Link
+              key={q}
+              href={`/chat/new?q=${encodeURIComponent(q)}`}
+              className="text-sm px-3 py-2 rounded border border-brand-800 hover:bg-brand-800/40 text-brand-200"
+            >
+              {q}
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      <section className="card p-5">
+        <div className="flex items-center justify-between mb-3">
           <h2 className="font-medium">Value by category</h2>
           <Link href="/reports" className="text-sm text-brand-300 hover:text-brand-100">Build report &rarr;</Link>
         </div>
