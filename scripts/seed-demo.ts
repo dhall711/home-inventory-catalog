@@ -1,4 +1,11 @@
 /**
+ * ============================================================================
+ * [TESTING ONLY - REMOVE BEFORE PRODUCTION]
+ * ============================================================================
+ * Delete this script and the matching `seed:demo` entry in package.json.
+ * See BACKLOG.md > "Pre-production cleanup" for the full removal checklist.
+ * ============================================================================
+ *
  * Seed a realistic demo household so screenshots/demos/reports look populated.
  *
  * Usage:

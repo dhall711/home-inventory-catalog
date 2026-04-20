@@ -1,3 +1,11 @@
+/**
+ * ============================================================================
+ * [TESTING ONLY - REMOVE BEFORE PRODUCTION]
+ * ============================================================================
+ * Delete this entire route folder (app/api/admin/seed-demo/) before launch.
+ * See BACKLOG.md > "Pre-production cleanup" for the full removal checklist.
+ * ============================================================================
+ */
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient, createSupabaseServiceRoleClient } from '@/lib/supabase/server';
 import { requireHousehold, requireUser } from '@/lib/household';

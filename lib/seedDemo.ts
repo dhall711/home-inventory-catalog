@@ -1,4 +1,21 @@
 /**
+ * ============================================================================
+ * [TESTING ONLY - REMOVE BEFORE PRODUCTION]
+ * ============================================================================
+ * This module ships demo seed data so we can populate a household with a
+ * realistic catalog for screenshots, demos, and exploring features without
+ * uploading real items by hand.
+ *
+ * Before going to production:
+ *   1. Delete this file (lib/seedDemo.ts)
+ *   2. Delete app/api/admin/seed-demo/
+ *   3. Delete app/settings/SeedDemoPanel.tsx
+ *   4. Remove the SeedDemoPanel import + render from app/settings/SettingsClient.tsx
+ *   5. Delete scripts/seed-demo.ts (and the matching `seed:demo` script in package.json)
+ *
+ * See BACKLOG.md > "Pre-production cleanup" for the full checklist.
+ * ============================================================================
+ *
  * Reusable demo-data seeder. Used by both:
  *   - scripts/seed-demo.ts (CLI)
  *   - app/api/admin/seed-demo (in-app button on /settings)

@@ -5,6 +5,8 @@ import type { Household, MemberRole } from '@/lib/types';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import { DangerZone } from './DangerZone';
+// [TESTING ONLY - REMOVE BEFORE PRODUCTION] - delete this import and its
+// render below. See BACKLOG.md > "Pre-production cleanup".
 import { SeedDemoPanel } from './SeedDemoPanel';
 
 interface MemberRow {
@@ -201,6 +203,7 @@ export function SettingsClient({ household, members, invites, myRole, myUserId }
         </section>
       )}
 
+      {/* [TESTING ONLY - REMOVE BEFORE PRODUCTION] */}
       <SeedDemoPanel isOwner={isOwner} />
 
       <DangerZone householdName={household.name} isOwner={isOwner} />

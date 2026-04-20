@@ -1,5 +1,14 @@
 'use client';
 
+/**
+ * ============================================================================
+ * [TESTING ONLY - REMOVE BEFORE PRODUCTION]
+ * ============================================================================
+ * Delete this file and remove its import + render from SettingsClient.tsx.
+ * See BACKLOG.md > "Pre-production cleanup" for the full removal checklist.
+ * ============================================================================
+ */
+
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -65,9 +74,14 @@ export function SeedDemoPanel({ isOwner }: Props) {
   }
 
   return (
-    <section className="card p-5 space-y-3">
+    <section className="card border-amber-900/60 p-5 space-y-3">
       <div>
-        <h2 className="font-semibold">Demo data</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="font-semibold text-amber-200">Demo data</h2>
+          <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-900/50 text-amber-200 border border-amber-800/60">
+            Testing only
+          </span>
+        </div>
         <p className="text-sm text-brand-300 mt-1">
           Populate this household with about 25 sample items across categories
           (pipes, ethnographic art, figurines, art, furniture, electronics,
@@ -75,6 +89,9 @@ export function SeedDemoPanel({ isOwner }: Props) {
           5 rooms, 3 named collections, tags, and synthetic value-history
           timelines. Useful for screenshots, reports, and exploring features
           before adding your own data. No photos are added.
+        </p>
+        <p className="text-xs text-amber-300/80 mt-2 italic">
+          This panel will be removed before the app is released to real users.
         </p>
       </div>
 

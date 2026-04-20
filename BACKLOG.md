@@ -7,6 +7,39 @@ sized so we can drop them into a sprint without further design work.
 
 ---
 
+## Pre-production cleanup (do this before launch)
+
+Code paths added purely for development/testing convenience. They MUST be
+removed before opening the app to real users — they let any household owner
+inject fake inventory rows and (in some cases) bypass the normal add-item
+flow. Every file listed below carries a matching
+`[TESTING ONLY - REMOVE BEFORE PRODUCTION]` header comment.
+
+### Demo data seeder
+
+Lets a logged-in owner click a button to populate their household with ~25
+hand-curated sample items, locations, collections, and tags. Useful for
+demos and screenshots, but should not exist in a paid consumer product.
+
+- [ ] Delete `lib/seedDemo.ts` (the seed data + insert logic)
+- [ ] Delete `app/api/admin/seed-demo/` (the entire route folder)
+- [ ] Delete `app/settings/SeedDemoPanel.tsx` (the Settings UI card)
+- [ ] In `app/settings/SettingsClient.tsx`, remove:
+  - the `import { SeedDemoPanel } from './SeedDemoPanel';` line
+  - the `<SeedDemoPanel isOwner={isOwner} />` render
+  - both `[TESTING ONLY ...]` comments
+- [ ] Delete `scripts/seed-demo.ts`
+- [ ] In `package.json`, remove the `"seed:demo": "tsx scripts/seed-demo.ts"` script entry
+
+### Verification after removal
+
+- `npx tsc --noEmit` should pass with no broken imports
+- `npx next build` should complete cleanly
+- `/settings` should no longer show the "Demo data" card
+- `POST /api/admin/seed-demo` should return 404
+
+---
+
 ## Borrowed from competitors (Itemtopia analysis, 2026-04)
 
 Source: <https://www.itemtopia.com/media-assets>
