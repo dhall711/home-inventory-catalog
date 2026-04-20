@@ -6,6 +6,7 @@ import Link from 'next/link';
 interface Props {
   householdName: string;
   userEmail: string | null;
+  displayName: string | null;
 }
 
 /**
@@ -13,9 +14,10 @@ interface Props {
  * (derived from the route) on the left and the active user/household on the
  * right. The mobile menu opener lives inside Sidebar.
  */
-export function TopBar({ householdName, userEmail }: Props) {
+export function TopBar({ householdName, userEmail, displayName }: Props) {
   const pathname = usePathname() ?? '/';
   const crumbs = breadcrumbsForPath(pathname);
+  const userLabel = displayName?.trim() || userEmail;
 
   return (
     <header className="sticky top-0 z-20 bg-brand-950/70 backdrop-blur border-b border-brand-800">
@@ -34,13 +36,14 @@ export function TopBar({ householdName, userEmail }: Props) {
         </nav>
         <div className="flex items-center gap-3 text-xs text-brand-400">
           <span className="hidden md:inline">{householdName}</span>
-          {userEmail && (
-            <span
-              className="hidden md:inline px-2 py-0.5 rounded bg-brand-800/50 border border-brand-700/50"
-              title={userEmail}
+          {userLabel && (
+            <Link
+              href="/account"
+              className="hidden md:inline px-2 py-0.5 rounded bg-brand-800/50 border border-brand-700/50 hover:bg-brand-800 hover:text-brand-100"
+              title={userEmail ?? undefined}
             >
-              {userEmail}
-            </span>
+              {userLabel}
+            </Link>
           )}
         </div>
       </div>

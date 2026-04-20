@@ -1,4 +1,4 @@
-import { getCurrentUser, getCurrentHousehold } from '@/lib/household';
+import { getCurrentUser, getCurrentHousehold, ensureProfile } from '@/lib/household';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
@@ -22,6 +22,14 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
   if (!household) {
     return <main className="max-w-7xl mx-auto px-4 py-6">{children}</main>;
   }
+
+  // Cheap: ensureProfile upserts/reads the current user's profile row.
+  // If it fails for any reason we still want the shell to render.
+  const profile = await ensureProfile().catch(() => ({
+    id: user.id,
+    display_name: null as string | null,
+    avatar_url: null as string | null,
+  }));
 
   const supabase = await createSupabaseServerClient();
 
@@ -94,9 +102,18 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         }))}
         tags={tags ?? []}
         savedSearches={savedSearches ?? []}
+        currentUser={{
+          email: user.email ?? null,
+          displayName: profile.display_name,
+          avatarUrl: profile.avatar_url,
+        }}
       />
       <div className="flex-1 min-w-0 flex flex-col">
-        <TopBar householdName={household.name} userEmail={user.email ?? null} />
+        <TopBar
+          householdName={household.name}
+          userEmail={user.email ?? null}
+          displayName={profile.display_name}
+        />
         <main className="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-6 py-6">
           {children}
         </main>

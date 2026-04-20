@@ -9,6 +9,12 @@ interface LocationEntry { id: string; name: string; count: number }
 interface TagEntry { id: string; name: string }
 interface SavedSearchEntry { id: string; name: string; query_string: string }
 
+interface CurrentUser {
+  email: string | null;
+  displayName: string | null;
+  avatarUrl: string | null;
+}
+
 interface Props {
   householdName: string;
   itemCount: number;
@@ -16,9 +22,10 @@ interface Props {
   locations: LocationEntry[];
   tags: TagEntry[];
   savedSearches: SavedSearchEntry[];
+  currentUser: CurrentUser;
 }
 
-export function Sidebar({ householdName, itemCount, collections, locations, tags, savedSearches }: Props) {
+export function Sidebar({ householdName, itemCount, collections, locations, tags, savedSearches, currentUser }: Props) {
   const pathname = usePathname() ?? '';
   const router = useRouter();
   const sp = useSearchParams();
@@ -225,6 +232,7 @@ export function Sidebar({ householdName, itemCount, collections, locations, tags
         <div className="border-t border-brand-800 p-3 text-sm space-y-0.5">
           <NavItem href="/reports" label="Reports" active={pathname.startsWith('/reports')} />
           <NavItem href="/settings" label="Settings" active={pathname.startsWith('/settings')} />
+          <UserChip user={currentUser} active={pathname.startsWith('/account')} />
           <form action="/api/auth/signout" method="post">
             <button
               type="submit"
@@ -272,4 +280,47 @@ function Group({ title, children, defaultOpen }: { title: string; children: Reac
 
 function Empty({ children }: { children: React.ReactNode }) {
   return <div className="text-xs text-brand-500 px-2">{children}</div>;
+}
+
+function UserChip({ user, active }: { user: CurrentUser; active: boolean }) {
+  const label = user.displayName?.trim() || user.email || 'Account';
+  const sublabel = user.displayName && user.email && user.email !== user.displayName
+    ? user.email
+    : null;
+  const initials = (user.displayName || user.email || '?')
+    .split(/[\s@]+/)
+    .map((p) => p.charAt(0))
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
+  return (
+    <Link
+      href="/account"
+      className={`flex items-center gap-2 rounded px-2 py-1.5 min-w-0 ${
+        active ? 'bg-brand-700/70 text-white' : 'text-brand-200 hover:bg-brand-800/60'
+      }`}
+    >
+      {user.avatarUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={user.avatarUrl}
+          alt=""
+          className="w-7 h-7 rounded-full object-cover flex-shrink-0 border border-brand-700"
+        />
+      ) : (
+        <span className="w-7 h-7 rounded-full bg-brand-800 border border-brand-700 flex items-center justify-center text-[10px] text-brand-200 flex-shrink-0">
+          {initials}
+        </span>
+      )}
+      <span className="min-w-0 flex-1">
+        <span className="block truncate leading-tight">{label}</span>
+        {sublabel && (
+          <span className="block truncate text-[10px] text-brand-400 leading-tight">
+            {sublabel}
+          </span>
+        )}
+      </span>
+    </Link>
+  );
 }

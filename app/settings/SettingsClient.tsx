@@ -14,6 +14,8 @@ interface MemberRow {
   role: MemberRole;
   joined_at: string;
   invited_email: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
 }
 
 interface InviteRow {
@@ -134,24 +136,51 @@ export function SettingsClient({ household, members, invites, myRole, myUserId }
       <section className="card p-5 space-y-4">
         <h2 className="font-semibold">Members ({members.length})</h2>
         <ul className="divide-y divide-brand-800">
-          {members.map((m) => (
-            <li key={m.user_id} className="py-2 flex items-center justify-between gap-3">
-              <div>
-                <div className="text-sm">
-                  {m.invited_email ?? m.user_id}
-                  {m.user_id === myUserId && <span className="ml-2 text-xs text-brand-300">(you)</span>}
+          {members.map((m) => {
+            const name = m.display_name?.trim() || m.invited_email || m.user_id.slice(0, 8);
+            const email = m.invited_email && m.invited_email !== name ? m.invited_email : null;
+            const initials = (m.display_name || m.invited_email || '?')
+              .split(/[\s@]+/)
+              .map((p) => p.charAt(0))
+              .join('')
+              .slice(0, 2)
+              .toUpperCase();
+            return (
+              <li key={m.user_id} className="py-2 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  {m.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={m.avatar_url}
+                      alt=""
+                      className="w-8 h-8 rounded-full object-cover border border-brand-700 flex-shrink-0"
+                    />
+                  ) : (
+                    <span className="w-8 h-8 rounded-full bg-brand-800 border border-brand-700 flex items-center justify-center text-[11px] text-brand-200 flex-shrink-0">
+                      {initials}
+                    </span>
+                  )}
+                  <div className="min-w-0">
+                    <div className="text-sm truncate">
+                      {name}
+                      {m.user_id === myUserId && (
+                        <span className="ml-2 text-xs text-brand-300">(you)</span>
+                      )}
+                    </div>
+                    <div className="text-xs text-brand-400 truncate">
+                      {m.role} - joined {new Date(m.joined_at).toLocaleDateString()}
+                      {email && <> - {email}</>}
+                    </div>
+                  </div>
                 </div>
-                <div className="text-xs text-brand-400">
-                  {m.role} - joined {new Date(m.joined_at).toLocaleDateString()}
-                </div>
-              </div>
-              {isOwner && m.user_id !== myUserId && (
-                <button className="btn-ghost text-red-300" onClick={() => handleRemoveMember(m.user_id)}>
-                  Remove
-                </button>
-              )}
-            </li>
-          ))}
+                {isOwner && m.user_id !== myUserId && (
+                  <button className="btn-ghost text-red-300" onClick={() => handleRemoveMember(m.user_id)}>
+                    Remove
+                  </button>
+                )}
+              </li>
+            );
+          })}
         </ul>
       </section>
 

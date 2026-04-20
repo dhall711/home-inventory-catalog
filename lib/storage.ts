@@ -3,6 +3,12 @@ import { createSupabaseServerClient, createSupabaseServiceRoleClient } from '@/l
 export const PHOTO_BUCKET = 'item-photos';
 export const ATTACHMENT_BUCKET = 'item-attachments';
 export const REPORTS_BUCKET = 'reports';
+export const AVATAR_BUCKET = 'avatars';
+
+export function buildAvatarPath(userId: string) {
+  const ts = Date.now();
+  return `${userId}/${ts}.jpg`;
+}
 
 export function buildPhotoPath(householdId: string, fileName: string) {
   const ts = Date.now();

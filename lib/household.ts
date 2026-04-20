@@ -14,6 +14,72 @@ export async function requireUser() {
   return user;
 }
 
+export interface Profile {
+  id: string;
+  display_name: string | null;
+  avatar_url: string | null;
+}
+
+/**
+ * Ensure the current user has a profile row and backfill display_name /
+ * avatar_url from auth metadata on first login. Safe to call on every
+ * sign-in: it only fills empty fields, never overwrites values the user
+ * has set from /account.
+ */
+export async function ensureProfile(): Promise<Profile> {
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const admin = createSupabaseServiceRoleClient();
+
+  const { data: existing } = await admin
+    .from('profiles')
+    .select('id, display_name, avatar_url')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
+  const metaName = [
+    meta.display_name,
+    meta.full_name,
+    meta.name,
+  ].find((v): v is string => typeof v === 'string' && v.trim().length > 0);
+  const metaAvatar = [meta.avatar_url, meta.picture].find(
+    (v): v is string => typeof v === 'string' && v.trim().length > 0
+  );
+
+  if (!existing) {
+    const defaults = {
+      id: user.id,
+      display_name: metaName ?? (user.email ? user.email.split('@')[0] : null),
+      avatar_url: metaAvatar ?? null,
+    };
+    const { data: created } = await admin
+      .from('profiles')
+      .insert(defaults)
+      .select('id, display_name, avatar_url')
+      .single();
+    return (created as Profile) ?? defaults;
+  }
+
+  const patch: { display_name?: string; avatar_url?: string } = {};
+  if (!existing.display_name && metaName) patch.display_name = metaName;
+  if (!existing.avatar_url && metaAvatar) patch.avatar_url = metaAvatar;
+
+  if (Object.keys(patch).length > 0) {
+    const { data: updated } = await admin
+      .from('profiles')
+      .update(patch)
+      .eq('id', user.id)
+      .select('id, display_name, avatar_url')
+      .single();
+    return (updated as Profile) ?? (existing as Profile);
+  }
+
+  return existing as Profile;
+}
+
 export async function getCurrentHousehold(): Promise<Household | null> {
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -99,8 +165,23 @@ export async function ensureHousehold(): Promise<Household> {
     if (existingHh) return existingHh as Household;
   }
 
-  const defaultName = (user.user_metadata?.name as string | undefined)
-    || (user.email ? `${user.email.split('@')[0]}'s Household` : 'My Household');
+  // Prefer the profile display_name (which may have been set via signup
+  // form or OAuth metadata) when picking a default household name, so
+  // new users land on "Jane's Household" rather than "jsmith's Household".
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('display_name')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  const displayName = (profile?.display_name as string | null | undefined)?.trim()
+    || (user.user_metadata?.display_name as string | undefined)?.trim()
+    || (user.user_metadata?.full_name as string | undefined)?.trim()
+    || (user.user_metadata?.name as string | undefined)?.trim();
+
+  const defaultName = displayName
+    ? `${displayName}'s Household`
+    : (user.email ? `${user.email.split('@')[0]}'s Household` : 'My Household');
 
   const { data: created, error } = await admin
     .from('households')
