@@ -54,7 +54,17 @@ interface PendingHistory {
   notes: string | null;
 }
 
+interface PendingPhoto {
+  id: string;
+  name: string;
+  status: 'uploading' | 'ready' | 'error';
+  url?: string;
+  thumb_url?: string;
+  errorMsg?: string;
+}
+
 let docCounter = 0;
+let photoCounter = 0;
 
 /**
  * Mobile-first 4-field confirm screen used after AI prefill on a fresh photo.
@@ -90,6 +100,11 @@ export function QuickConfirm({
   const [docKind, setDocKind] = useState<AttachmentKind>('receipt');
   const [pendingDocs, setPendingDocs] = useState<PendingDoc[]>([]);
   const [pendingHistory, setPendingHistory] = useState<PendingHistory[]>([]);
+  // ---- Additional-photo state (pre-save) ----
+  // Each extra photo is uploaded to /api/upload/photo right away so we
+  // can show a thumbnail. After the item is created we link them via
+  // POST /api/items/[id]/photos with the already-uploaded URLs.
+  const [pendingPhotos, setPendingPhotos] = useState<PendingPhoto[]>([]);
   // Fields that came from documents (or that the user filled via doc-confirm
   // dialog) and that aren't in the 4-field UI. Merged into the save payload.
   const [extraDraft, setExtraDraft] = useState<Record<string, unknown>>({});
@@ -261,6 +276,56 @@ export function QuickConfirm({
     // accepted those values. They can edit them via "Add more details".
   }
 
+  async function handlePhotosChosen(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    if (files.length === 0) return;
+    // Stage each file as "uploading", then upload in parallel and update
+    // each row as it completes. Keeps the UI responsive when several
+    // photos are picked at once.
+    const staged: PendingPhoto[] = files.map((f) => ({
+      id: `photo-${++photoCounter}`,
+      name: f.name,
+      status: 'uploading' as const,
+    }));
+    setPendingPhotos((arr) => [...arr, ...staged]);
+
+    await Promise.all(
+      files.map(async (file, i) => {
+        const id = staged[i].id;
+        try {
+          const fd = new FormData();
+          fd.append('file', file);
+          const res = await fetch('/api/upload/photo', { method: 'POST', body: fd });
+          const json = await res.json();
+          if (!res.ok) throw new Error(json.error ?? 'Upload failed');
+          setPendingPhotos((arr) =>
+            arr.map((p) =>
+              p.id === id
+                ? { ...p, status: 'ready', url: json.url as string, thumb_url: json.thumb_url as string }
+                : p
+            )
+          );
+        } catch (err) {
+          setPendingPhotos((arr) =>
+            arr.map((p) =>
+              p.id === id
+                ? { ...p, status: 'error', errorMsg: err instanceof Error ? err.message : 'Failed' }
+                : p
+            )
+          );
+        }
+      })
+    );
+  }
+
+  function removePendingPhoto(id: string) {
+    // Best-effort remove; the underlying blob in storage is intentionally
+    // left to GC (we don't have a delete-by-path endpoint and orphans
+    // here behave the same as if the user abandoned the page mid-upload).
+    setPendingPhotos((arr) => arr.filter((p) => p.id !== id));
+  }
+
   async function save(then: 'add_another' | 'done') {
     setError(null);
     if (!name.trim()) {
@@ -270,6 +335,10 @@ export function QuickConfirm({
     // Don't let the user save mid-extraction or with an open dialog.
     if (pendingDocs.some((d) => d.status === 'extracting')) {
       setError('Still reading documents — please wait a moment.');
+      return;
+    }
+    if (pendingPhotos.some((p) => p.status === 'uploading')) {
+      setError('Still uploading photos — please wait a moment.');
       return;
     }
     if (confirmDoc) {
@@ -352,6 +421,20 @@ export function QuickConfirm({
           })
         )
       );
+      // Link any pre-uploaded extra photos to the new item. We pass the
+      // already-uploaded URLs so the server doesn't have to re-process
+      // the bytes a second time.
+      await Promise.allSettled(
+        pendingPhotos
+          .filter((p) => p.status === 'ready' && p.url)
+          .map((p) =>
+            fetch(`/api/items/${saved.id}/photos`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ url: p.url, thumb_url: p.thumb_url ?? null }),
+            })
+          )
+      );
 
       if (then === 'add_another') onSaveAndAddAnother(saved);
       else onSaveAndDone(saved);
@@ -433,6 +516,64 @@ export function QuickConfirm({
       {prefill?.estimated_value_reasoning && (
         <p className="text-xs text-brand-400 italic">AI: {prefill.estimated_value_reasoning}</p>
       )}
+
+      {/* ---------------------------------------------------------------- */}
+      {/* More photos (optional) - close-ups of serial tags, accessories,  */}
+      {/* damage, etc. Each is uploaded immediately so the user sees a     */}
+      {/* thumbnail; they're linked to the item right after Save.          */}
+      {/* ---------------------------------------------------------------- */}
+      <div className="space-y-2 pt-3 border-t border-brand-800">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div>
+            <div className="text-sm font-medium">Add more photos <span className="text-xs font-normal text-brand-400">(optional)</span></div>
+            <div className="text-[11px] text-brand-400">
+              Close-ups of serial-number tags, hallmarks, signatures, damage, accessories.
+            </div>
+          </div>
+          <label className="btn-secondary text-xs cursor-pointer whitespace-nowrap">
+            Add photos
+            <input
+              type="file"
+              className="hidden"
+              accept="image/*"
+              multiple
+              onChange={handlePhotosChosen}
+              disabled={busy}
+            />
+          </label>
+        </div>
+        {pendingPhotos.length > 0 && (
+          <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+            {pendingPhotos.map((p) => (
+              <div
+                key={p.id}
+                className="relative aspect-square rounded bg-brand-950 border border-brand-800 overflow-hidden group"
+                title={p.name}
+              >
+                {p.status === 'ready' && p.thumb_url ? (
+                  <img src={p.thumb_url} alt={p.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-[10px] text-brand-300 text-center px-1">
+                    {p.status === 'uploading' && 'Uploading…'}
+                    {p.status === 'error' && (
+                      <span className="text-red-300">Error</span>
+                    )}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  className="absolute top-1 right-1 bg-black/60 hover:bg-red-700 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
+                  onClick={() => removePendingPhoto(p.id)}
+                  title="Remove"
+                  aria-label="Remove photo"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* ---------------------------------------------------------------- */}
       {/* Documents (optional) - attach a receipt/appraisal/manual now and */}

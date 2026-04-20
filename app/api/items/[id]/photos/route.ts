@@ -34,11 +34,20 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
 }
 
 /**
- * POST /api/items/[id]/photos  (multipart/form-data, field "file")
+ * POST /api/items/[id]/photos
  *
- * Upload an additional photo for an item. The first photo on an item
- * automatically becomes the primary (and seeds items.primary_photo_url);
- * subsequent uploads are appended to the gallery.
+ * Two call shapes:
+ *
+ * 1. multipart/form-data with field "file" → upload + resize on the
+ *    server, then create the item_photos row.
+ *
+ * 2. application/json with { url, thumb_url? } → link an already-uploaded
+ *    photo (typically uploaded via /api/upload/photo before the item
+ *    existed - used by the new-item QuickConfirm flow).
+ *
+ * The first photo on an item automatically becomes the primary (and
+ * seeds items.primary_photo_url); subsequent additions are appended to
+ * the gallery.
  */
 export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
@@ -53,25 +62,43 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     .single();
   if (!item) return NextResponse.json({ error: 'item not found' }, { status: 404 });
 
-  const form = await request.formData();
-  const file = form.get('file');
-  if (!(file instanceof File)) {
-    return NextResponse.json({ error: 'file required' }, { status: 400 });
-  }
+  const contentType = request.headers.get('content-type') ?? '';
 
-  const buf = Buffer.from(await file.arrayBuffer());
-  let uploaded;
-  try {
-    uploaded = await uploadItemPhoto({
-      householdId: household.id,
-      buffer: buf,
-      filename: file.name,
-    });
-  } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Upload failed' },
-      { status: 500 }
-    );
+  let url: string;
+  let thumbUrl: string | null;
+
+  if (contentType.includes('application/json')) {
+    const body = (await request.json().catch(() => null)) as {
+      url?: string;
+      thumb_url?: string | null;
+    } | null;
+    if (!body?.url) {
+      return NextResponse.json({ error: 'url required' }, { status: 400 });
+    }
+    url = body.url;
+    thumbUrl = body.thumb_url ?? null;
+  } else {
+    const form = await request.formData();
+    const file = form.get('file');
+    if (!(file instanceof File)) {
+      return NextResponse.json({ error: 'file required' }, { status: 400 });
+    }
+
+    const buf = Buffer.from(await file.arrayBuffer());
+    try {
+      const uploaded = await uploadItemPhoto({
+        householdId: household.id,
+        buffer: buf,
+        filename: file.name,
+      });
+      url = uploaded.url;
+      thumbUrl = uploaded.thumb_url;
+    } catch (err) {
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : 'Upload failed' },
+        { status: 500 }
+      );
+    }
   }
 
   // Determine sort_order = max+1 so new uploads always land at the end.
@@ -91,8 +118,8 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     .from('item_photos')
     .insert({
       item_id: id,
-      url: uploaded.url,
-      thumb_url: uploaded.thumb_url,
+      url,
+      thumb_url: thumbUrl,
       sort_order: nextOrder,
       is_primary: isFirst,
     })
@@ -107,8 +134,8 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     await supabase
       .from('items')
       .update({
-        primary_photo_url: uploaded.url,
-        primary_photo_thumb_url: uploaded.thumb_url,
+        primary_photo_url: url,
+        primary_photo_thumb_url: thumbUrl,
       })
       .eq('id', id)
       .eq('household_id', household.id);
