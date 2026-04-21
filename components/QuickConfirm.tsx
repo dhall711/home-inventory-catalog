@@ -19,6 +19,9 @@ interface Props {
    *  to the "Add more details" view. */
   extras: ItemExtrasState;
   setExtras: React.Dispatch<React.SetStateAction<ItemExtrasState>>;
+  /** Free-form note the user wrote on the photo screen; forwarded to the
+   *  AI when extracting documents or scanning close-up photos. */
+  userHint?: string | null;
   /** Performs the POST /api/items + extras linking. The page owns this
    *  so the same logic is shared with the full Details form. */
   onSubmit: (
@@ -56,6 +59,7 @@ export function QuickConfirm({
   initialLocationId,
   extras,
   setExtras,
+  userHint,
   onSubmit,
   onMoreDetails,
 }: Props) {
@@ -209,7 +213,11 @@ export function QuickConfirm({
           extras={extras}
           setExtras={setExtras}
           currentSnapshot={currentSnapshot}
-          context={{ name: name.trim() || prefill?.name || null, category }}
+          context={{
+            name: name.trim() || prefill?.name || null,
+            category,
+            userHint: userHint ?? null,
+          }}
           onCurrentValueApplied={(v) => setCurrentValue(String(v))}
           busy={busy}
         />

@@ -12,6 +12,8 @@ interface PhotoCtx {
   manufacturer: string | null;
   model: string | null;
   category: string | null;
+  /** Free-form note the user wrote on the new-item screen. */
+  userHint?: string | null;
 }
 
 function buildPrompt(ctx: PhotoCtx): string {
@@ -23,6 +25,11 @@ function buildPrompt(ctx: PhotoCtx): string {
   ]
     .filter(Boolean)
     .join(', ');
+
+  const userHint = (ctx.userHint ?? '').trim();
+  const userHintBlock = userHint
+    ? `\n\nUser-supplied context for this item (treat as background, not as ground truth — the photo still wins on conflicts): "${userHint.slice(0, 500)}"`
+    : '';
 
   return `You are inspecting a close-up photo from a household-inventory app. The user shoots tags, spec plates, and labels to record details that are too small to read in the main item photo.
 
@@ -37,7 +44,7 @@ Extract any visible identifiers and return ONLY a JSON object with this shape. U
   "confidence": 0.0-1.0
 }
 
-${ctxLine ? `Context for the parent item: ${ctxLine}.` : ''}
+${ctxLine ? `Context for the parent item: ${ctxLine}.` : ''}${userHintBlock}
 
 Important:
 - Do not invent characters in serial numbers. If part is occluded or blurry, return null.
@@ -104,6 +111,7 @@ export async function POST(request: Request) {
       manufacturer: body.context?.manufacturer ?? null,
       model: body.context?.model ?? null,
       category: body.context?.category ?? null,
+      userHint: body.context?.userHint ?? null,
     };
     try {
       const extraction = await runScan(body.photo_url, ctx);

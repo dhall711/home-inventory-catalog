@@ -30,6 +30,8 @@ interface Props {
   context: {
     name: string | null;
     category: CategorySlug;
+    /** Free-form note the user provided up front on the photo screen. */
+    userHint?: string | null;
   };
   /** Called when an extraction sets a current_value so the visible form input updates. */
   onCurrentValueApplied?: (value: number) => void;
@@ -79,6 +81,7 @@ export function ItemExtrasPanel({
           manufacturer: currentSnapshot.manufacturer,
           model: currentSnapshot.model,
           category: context.category,
+          userHint: context.userHint ?? null,
         })
       );
       const res = await fetch('/api/extract-attachment', { method: 'POST', body: fd });
@@ -218,6 +221,7 @@ export function ItemExtrasPanel({
             manufacturer: currentSnapshot.manufacturer,
             model: currentSnapshot.model,
             category: context.category,
+            userHint: context.userHint ?? null,
           },
         }),
       });

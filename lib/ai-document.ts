@@ -66,6 +66,11 @@ export interface DocumentItemContext {
   manufacturer?: string | null;
   model?: string | null;
   category?: string | null;
+  /** Free-form note the user wrote up front (e.g. "estate sale find,
+   *  possibly Tiffany sterling"). Surfaced in every prompt so per-document
+   *  / per-photo extractions stay aligned with the same story the user
+   *  gave the initial vision pass. */
+  userHint?: string | null;
 }
 
 const SHARED_RULES = `Return ONLY a JSON object matching the requested shape. Use null (not "" and not "unknown") for any field you cannot read. Numeric fields must be plain numbers (no currency symbol, no thousands separators). Dates must be ISO YYYY-MM-DD; if a date is ambiguous, prefer null over a guess.`;
@@ -113,6 +118,13 @@ function ctxLine(ctx: DocumentItemContext): string {
   return parts.join(', ');
 }
 
+/** Optional user-supplied free-form context, appended to every prompt. */
+function userHintLine(ctx: DocumentItemContext): string {
+  const h = (ctx.userHint ?? '').trim();
+  if (!h) return '';
+  return `\n\nUser-supplied context for this item (treat as background, not as ground truth — the document/image still wins on conflicts): "${h.slice(0, 500)}"`;
+}
+
 function receiptPrompt(ctx: DocumentItemContext): string {
   const c = ctxLine(ctx);
   const itemHint = c
@@ -129,7 +141,7 @@ Receipt-specific guidance:
 - "total" = price paid for THIS item (line-item price if context is provided, else grand total).
 - "warranty_until" only if a warranty/returns expiry date is printed.
 - "manufacturer/model/serial_number" only if explicitly on the receipt; do not invent.
-- If the receipt is in another language, translate vendor/notes to English but keep proper nouns intact.${itemHint}`;
+- If the receipt is in another language, translate vendor/notes to English but keep proper nouns intact.${itemHint}${userHintLine(ctx)}`;
 }
 
 function appraisalPrompt(ctx: DocumentItemContext): string {
@@ -151,7 +163,7 @@ Appraisal-specific guidance:
 - "description" = the appraiser's detailed item description if it adds detail beyond what the user already has.
 - "artist", "medium", "dimensions", "year_created", "provenance" = fill any of these that are explicitly stated. These are common on art and decorative-art appraisals.
 - Receipt-only fields (vendor, total, payment_method, order_number, line_items) should be null unless the appraisal also documents a purchase (rare).
-- "warranty_until" should be null - appraisals don't carry warranties.${itemHint}`;
+- "warranty_until" should be null - appraisals don't carry warranties.${itemHint}${userHintLine(ctx)}`;
 }
 
 function manualPrompt(ctx: DocumentItemContext): string {
@@ -173,7 +185,7 @@ Manual-specific guidance:
 - "year_created" = year of manufacture if stated.
 - "notes" = a short sentence summarizing key specs that don't map elsewhere (e.g. "Battery: 18650, USB-C, IP67").
 - "condition" should be null (manuals don't describe condition).
-- Receipt fields (vendor, total, ...) and appraisal fields (appraiser, appraised_value, ...) should all be null.${itemHint}`;
+- Receipt fields (vendor, total, ...) and appraisal fields (appraiser, appraised_value, ...) should all be null.${itemHint}${userHintLine(ctx)}`;
 }
 
 function otherPrompt(ctx: DocumentItemContext): string {
@@ -190,7 +202,7 @@ ${FULL_SHAPE}
 General guidance:
 - Fill any field that is clearly stated. Leave anything you can't confidently read as null.
 - If you see a price, decide whether it's a purchase price (use "total" + "vendor" + "purchase_date") or a valuation (use "appraised_value" + "appraiser" + "appraisal_date"). If unclear, prefer "appraised_value" because that's how insurers treat unsourced valuations.
-- "notes" should capture the document's purpose in one sentence (e.g. "Certificate of authenticity from House of X.").${itemHint}`;
+- "notes" should capture the document's purpose in one sentence (e.g. "Certificate of authenticity from House of X.").${itemHint}${userHintLine(ctx)}`;
 }
 
 export function buildDocumentPrompt(kind: AttachmentKind, ctx: DocumentItemContext): string {

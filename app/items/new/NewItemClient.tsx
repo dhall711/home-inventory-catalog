@@ -54,6 +54,11 @@ export function NewItemClient({ locations, collections, tags, initialCategory, i
   //      doesn't lose queued photos, documents, AI applies, or value history.
   const [extras, setExtras] = useState<ItemExtrasState>(EMPTY_EXTRAS);
   const [fileInputKey, setFileInputKey] = useState(0);
+  // Optional free-form hint the user gives the AI before snapping the
+  // photo. Examples: "estate sale find, possibly Tiffany sterling",
+  // "1955 Eames lounge from family". Sent verbatim to /api/analyze-item
+  // as the `hint` field, which is appended to the vision prompt.
+  const [hint, setHint] = useState('');
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -73,7 +78,10 @@ export function NewItemClient({ locations, collections, tags, initialCategory, i
       const aiRes = await fetch('/api/analyze-item', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image_url: up.url }),
+        body: JSON.stringify({
+          image_url: up.url,
+          hint: hint.trim() || undefined,
+        }),
       });
       const ai = await aiRes.json();
       if (!aiRes.ok) {
@@ -98,6 +106,7 @@ export function NewItemClient({ locations, collections, tags, initialCategory, i
     setPrefill(null);
     setQuickDraft(null);
     setExtras(EMPTY_EXTRAS);
+    setHint('');
     setStage('photo');
     setError(null);
     setFileInputKey((k) => k + 1);
@@ -287,6 +296,37 @@ export function NewItemClient({ locations, collections, tags, initialCategory, i
               You confirm in one screen and save.
             </p>
           </div>
+
+          <div>
+            <label htmlFor="ai-hint" className="label flex items-center justify-between">
+              <span>
+                Hint for the AI <span className="text-xs font-normal text-brand-400">(optional)</span>
+              </span>
+              {hint && (
+                <button
+                  type="button"
+                  className="text-xs text-brand-400 hover:text-brand-200"
+                  onClick={() => setHint('')}
+                  disabled={analyzing}
+                >
+                  Clear
+                </button>
+              )}
+            </label>
+            <textarea
+              id="ai-hint"
+              className="input min-h-[60px] text-sm"
+              value={hint}
+              onChange={(e) => setHint(e.target.value)}
+              disabled={analyzing}
+              maxLength={500}
+              placeholder="Anything the photo can't show — e.g. 'estate sale find, possibly Tiffany sterling', '1955 Eames lounge from family', 'Made in Japan, gift from in-laws'."
+            />
+            <p className="text-[11px] text-brand-400 mt-1">
+              The AI uses this as extra context when identifying, dating, and valuing the item.
+            </p>
+          </div>
+
           <input
             key={fileInputKey}
             type="file"
@@ -331,6 +371,7 @@ export function NewItemClient({ locations, collections, tags, initialCategory, i
           initialCollectionId={initialCollectionId}
           extras={extras}
           setExtras={setExtras}
+          userHint={hint.trim() || null}
           onSubmit={handleQuickSubmit}
           onMoreDetails={(d) => {
             setQuickDraft(d);
@@ -408,6 +449,7 @@ export function NewItemClient({ locations, collections, tags, initialCategory, i
             context={{
               name: mergedPrefill?.name || quickDraft?.name || null,
               category: (mergedPrefill?.category ?? 'other') as CategorySlug,
+              userHint: hint.trim() || null,
             }}
           />
         }
