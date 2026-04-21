@@ -202,9 +202,15 @@ export function NewItemClient({ locations, collections, tags, initialCategory, i
     return saved;
   }
 
-  /** QuickConfirm submit: condenses the 4 visible fields into the items POST. */
+  /** QuickConfirm submit: condenses the visible fields into the items POST. */
   async function handleQuickSubmit(
-    core: { name: string; category: CategorySlug; current_value: string; location_id: string },
+    core: {
+      name: string;
+      category: CategorySlug;
+      current_value: string;
+      location_id: string;
+      notes: string;
+    },
     then: 'add_another' | 'done'
   ) {
     const valueNum = core.current_value ? Number(core.current_value) : null;
@@ -243,6 +249,7 @@ export function NewItemClient({ locations, collections, tags, initialCategory, i
       ai_confidence: prefill?.confidence ?? null,
       attributes: { ...(prefill?.attributes ?? {}) },
       ...(valueNum ? { initial_value: valueNum } : {}),
+      ...(core.notes ? { notes: core.notes } : {}),
     };
 
     const saved = await saveAndLinkExtras(basePayload);
@@ -507,6 +514,7 @@ export function NewItemClient({ locations, collections, tags, initialCategory, i
         allTags={tags}
         initialCollectionId={initialCollectionId}
         initialLocationId={quickDraft?.location_id || undefined}
+        initialNotes={quickDraft?.notes || undefined}
         onCreate={handleDetailsSubmit}
         footerSlot={
           <ItemExtrasPanel

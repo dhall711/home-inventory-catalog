@@ -23,6 +23,9 @@ interface Props {
   initialTags?: string[];
   initialPhotoUrl?: string | null;
   initialPhotoThumbUrl?: string | null;
+  /** Pre-populates the Notes field in create mode (e.g. notes the user
+   *  already typed on the QuickConfirm screen). Ignored when `item` is set. */
+  initialNotes?: string | null;
   locations: SelectOption[];
   collections: SelectOption[];
   allTags: SelectOption[];
@@ -50,6 +53,7 @@ export function ItemForm({
   initialTags,
   initialPhotoUrl,
   initialPhotoThumbUrl,
+  initialNotes,
   locations,
   collections,
   allTags,
@@ -86,7 +90,7 @@ export function ItemForm({
   const [currentValueSource, setCurrentValueSource] = useState<ValueSource>(
     item?.current_value_source ?? (prefill?.estimated_value ? 'ai' : 'manual')
   );
-  const [notes, setNotes] = useState(item?.notes ?? '');
+  const [notes, setNotes] = useState(item?.notes ?? initialNotes ?? '');
   const [tags, setTags] = useState<string>(initialTags?.join(', ') ?? '');
   const [photoUrl, setPhotoUrl] = useState(initialPhotoUrl ?? item?.primary_photo_url ?? '');
   const [photoThumbUrl, setPhotoThumbUrl] = useState(initialPhotoThumbUrl ?? item?.primary_photo_thumb_url ?? '');

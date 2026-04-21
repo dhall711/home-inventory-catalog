@@ -30,6 +30,7 @@ interface Props {
       category: CategorySlug;
       current_value: string;
       location_id: string;
+      notes: string;
     },
     then: 'add_another' | 'done'
   ) => Promise<void>;
@@ -41,6 +42,7 @@ export interface QuickDraft {
   category: CategorySlug;
   current_value: string;
   location_id: string;
+  notes: string;
 }
 
 /**
@@ -69,6 +71,7 @@ export function QuickConfirm({
     prefill?.estimated_value != null ? String(prefill.estimated_value) : ''
   );
   const [locationId, setLocationId] = useState(initialLocationId ?? '');
+  const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -102,12 +105,12 @@ export function QuickConfirm({
       manufacturer: (fromExtra('manufacturer') as string | null) ?? txt(prefill?.manufacturer) ?? null,
       model: (fromExtra('model') as string | null) ?? txt(prefill?.model) ?? null,
       serial_number: (fromExtra('serial_number') as string | null) ?? txt(prefill?.serial_number) ?? null,
-      notes: (fromExtra('notes') as string | null) ?? null,
+      notes: txt(notes) ?? (fromExtra('notes') as string | null) ?? null,
       description: (fromExtra('description') as string | null) ?? txt(prefill?.description) ?? null,
       condition: (fromExtra('condition') as string | null) ?? txt(prefill?.condition) ?? null,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [extras.extraDraft, currentValue, prefill]);
+  }, [extras.extraDraft, currentValue, prefill, notes]);
 
   async function save(then: 'add_another' | 'done') {
     setError(null);
@@ -126,7 +129,13 @@ export function QuickConfirm({
     setBusy(true);
     try {
       await onSubmit(
-        { name: name.trim(), category, current_value: currentValue, location_id: locationId },
+        {
+          name: name.trim(),
+          category,
+          current_value: currentValue,
+          location_id: locationId,
+          notes: notes.trim(),
+        },
         then
       );
     } catch (err) {
@@ -204,6 +213,18 @@ export function QuickConfirm({
         </div>
       </div>
 
+      <div>
+        <label htmlFor="quick-notes" className="label">Notes</label>
+        <textarea
+          id="quick-notes"
+          className="input min-h-[80px]"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Optional — anything you want to remember about this item."
+          rows={3}
+        />
+      </div>
+
       {prefill?.estimated_value_reasoning && (
         <p className="text-xs text-brand-400 italic">AI: {prefill.estimated_value_reasoning}</p>
       )}
@@ -234,7 +255,13 @@ export function QuickConfirm({
           className="btn-ghost ml-auto"
           disabled={busy}
           onClick={() =>
-            onMoreDetails({ name, category, current_value: currentValue, location_id: locationId })
+            onMoreDetails({
+              name,
+              category,
+              current_value: currentValue,
+              location_id: locationId,
+              notes,
+            })
           }
         >
           Add more details →
