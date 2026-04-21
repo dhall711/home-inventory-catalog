@@ -24,7 +24,7 @@ Modeled on the wine catalog framework but with a real Postgres backend (Supabase
 - Insurance reports: filterable PDF schedule (cover page, grouped by category, subtotals) + CSV export, saved to Supabase Storage with 7-day signed URLs
 - Hierarchical locations (House &gt; Room &gt; Shelf), collections, free-form tags
 - Dashboard with totals, value-by-category bar chart, recent additions
-- PWA manifest + mobile camera capture (`<input type="file" capture="environment">`)
+- PWA manifest + mobile photo picker (camera or photo library on iOS/Android)
 
 ## Setup
 

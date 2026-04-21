@@ -28,6 +28,15 @@ interface Props {
   prefill?: AIExtractedItem | null;
   initialCollectionId?: string;
   initialLocationId?: string;
+  /**
+   * In create mode, when provided, replaces the default POST /api/items
+   * call so the parent can merge in queued extras (additional photos,
+   * documents, AI-extracted overrides) and link them after the row is
+   * created. The parent is responsible for navigation after save.
+   */
+  onCreate?: (payload: Record<string, unknown>) => Promise<void>;
+  /** Optional render slot below the action buttons (e.g. queued-extras panel). */
+  footerSlot?: React.ReactNode;
 }
 
 const STATUSES: ItemStatus[] = ['active', 'sold', 'disposed', 'lost', 'review'];
@@ -46,6 +55,8 @@ export function ItemForm({
   prefill,
   initialCollectionId,
   initialLocationId,
+  onCreate,
+  footerSlot,
 }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -203,6 +214,11 @@ export function ItemForm({
     };
 
     try {
+      if (mode === 'create' && onCreate) {
+        // Parent handles the POST + extras linking + navigation.
+        await onCreate(payload);
+        return;
+      }
       const url = mode === 'create' ? '/api/items' : `/api/items/${item!.id}`;
       const method = mode === 'create' ? 'POST' : 'PATCH';
       const res = await fetch(url, {
@@ -244,7 +260,6 @@ export function ItemForm({
             <input
               type="file"
               accept="image/*"
-              capture="environment"
               onChange={handlePhotoUpload}
               disabled={uploading}
               className="text-sm"
@@ -445,6 +460,10 @@ export function ItemForm({
           <Field label="Notes">
             <textarea className="input min-h-[80px]" value={notes} onChange={(e) => setNotes(e.target.value)} />
           </Field>
+
+          {footerSlot && (
+            <div className="pt-4 border-t border-brand-800">{footerSlot}</div>
+          )}
 
           <div className="flex gap-3">
             <button type="submit" className="btn-primary" disabled={busy}>

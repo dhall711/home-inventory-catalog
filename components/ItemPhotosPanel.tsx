@@ -217,7 +217,6 @@ export function ItemPhotosPanel({
             type="file"
             accept="image/*"
             multiple
-            capture="environment"
             className="hidden"
             disabled={uploading}
             onChange={handleAdd}

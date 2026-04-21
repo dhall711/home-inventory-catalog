@@ -41,7 +41,7 @@ export function BatchUploadClient() {
 
   return (
     <div className="card p-6 space-y-3">
-      <input type="file" accept="image/*" capture="environment" onChange={handleFile} disabled={busy} />
+      <input type="file" accept="image/*" onChange={handleFile} disabled={busy} />
       {status && <div className="text-sm text-brand-300">{status}</div>}
       {error && <div className="text-sm text-red-300">{error}</div>}
     </div>

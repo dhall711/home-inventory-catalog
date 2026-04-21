@@ -99,7 +99,6 @@ export function ChatComposer({ onSend, disabled, placeholder }: Props) {
           ref={fileRef}
           type="file"
           accept="image/*"
-          capture="environment"
           onChange={handleFile}
           className="hidden"
         />

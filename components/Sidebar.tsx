@@ -42,11 +42,12 @@ export function Sidebar({ householdName, itemCount, collections, locations, tags
 
   return (
     <>
-      {/* Mobile open button - sticky bar at the top of the page. */}
+      {/* Mobile open button - top-right so it doesn't cover the page's
+          breadcrumb / back link on the left edge. */}
       <button
         type="button"
         onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed top-3 left-3 z-30 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-brand-900/80 backdrop-blur border border-brand-700 text-sm text-brand-100"
+        className="lg:hidden fixed top-3 right-3 z-30 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-brand-900/80 backdrop-blur border border-brand-700 text-sm text-brand-100"
         aria-label="Open menu"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
