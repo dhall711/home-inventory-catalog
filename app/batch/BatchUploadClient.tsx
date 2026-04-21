@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { prepareImageForUpload, readJsonOrThrow } from '@/lib/client/image';
 
 export function BatchUploadClient() {
   const router = useRouter();
@@ -15,12 +16,14 @@ export function BatchUploadClient() {
     setBusy(true);
     setError(null);
     try {
+      setStatus('Preparing photo...');
+      const prepared = await prepareImageForUpload(file);
+
       setStatus('Uploading photo...');
       const fd = new FormData();
-      fd.append('file', file);
+      fd.append('file', prepared);
       const upRes = await fetch('/api/upload/photo', { method: 'POST', body: fd });
-      const up = await upRes.json();
-      if (!upRes.ok) throw new Error(up.error ?? 'Upload failed');
+      const up = await readJsonOrThrow<{ url: string }>(upRes, 'Upload');
 
       setStatus('Identifying items with AI (this can take 30-60s)...');
       const res = await fetch('/api/analyze-batch', {
@@ -28,8 +31,7 @@ export function BatchUploadClient() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image_url: up.url }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? 'Analyze failed');
+      const json = await readJsonOrThrow<{ batch_id: string }>(res, 'Analyze');
       router.push(`/batch/${json.batch_id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed');

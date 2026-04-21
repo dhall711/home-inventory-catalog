@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import type { Profile } from '@/lib/household';
+import { prepareImageForUpload, readJsonOrThrow } from '@/lib/client/image';
 
 interface Props {
   userId: string;
@@ -57,11 +58,11 @@ export function AccountClient({ email, profile, hasPasswordAuth, providers }: Pr
     setBusy('avatar');
     setSect('avatar', null);
     try {
+      const prepared = await prepareImageForUpload(file, { maxDimension: 800 });
       const fd = new FormData();
-      fd.append('file', file);
+      fd.append('file', prepared);
       const res = await fetch('/api/account/avatar', { method: 'POST', body: fd });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? 'Upload failed');
+      const json = await readJsonOrThrow<{ profile?: { avatar_url: string | null } }>(res, 'Upload');
       setAvatarUrl(json.profile?.avatar_url ?? null);
       setSect('avatar', { kind: 'ok', message: 'Avatar updated.' });
       router.refresh();

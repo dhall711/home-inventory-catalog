@@ -12,6 +12,7 @@ import {
   nextPhotoId,
 } from '@/lib/item-extras';
 import { DocumentApplyDialog, type DocumentApplyResult, type ItemSnapshot } from './DocumentApplyDialog';
+import { prepareImageForUpload, readJsonOrThrow } from '@/lib/client/image';
 
 const KINDS: AttachmentKind[] = ['receipt', 'appraisal', 'manual', 'other'];
 const KIND_LABEL: Record<AttachmentKind, string> = {
@@ -175,16 +176,16 @@ export function ItemExtrasPanel({
       files.map(async (file, i) => {
         const id = staged[i].id;
         try {
+          const prepared = await prepareImageForUpload(file);
           const fd = new FormData();
-          fd.append('file', file);
+          fd.append('file', prepared);
           const res = await fetch('/api/upload/photo', { method: 'POST', body: fd });
-          const json = await res.json();
-          if (!res.ok) throw new Error(json.error ?? 'Upload failed');
+          const json = await readJsonOrThrow<{ url: string; thumb_url: string }>(res, 'Upload');
           setExtras((prev) => ({
             ...prev,
             pendingPhotos: prev.pendingPhotos.map((p) =>
               p.id === id
-                ? { ...p, status: 'ready', url: json.url as string, thumb_url: json.thumb_url as string }
+                ? { ...p, status: 'ready', url: json.url, thumb_url: json.thumb_url }
                 : p
             ),
           }));

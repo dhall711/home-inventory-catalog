@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { ItemPhoto } from '@/lib/types';
+import { prepareImageForUpload, readJsonOrThrow } from '@/lib/client/image';
 
 interface Props {
   itemId: string;
@@ -56,15 +57,15 @@ export function ItemPhotosPanel({
       // Upload sequentially to keep server load (and the storage bucket's
       // upsert semantics) predictable. Most users add 1-3 photos at a time.
       for (const file of Array.from(files)) {
+        const prepared = await prepareImageForUpload(file);
         const fd = new FormData();
-        fd.append('file', file);
+        fd.append('file', prepared);
         const res = await fetch(`/api/items/${itemId}/photos`, {
           method: 'POST',
           body: fd,
         });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error ?? 'Upload failed');
-        newPhotos.push(json.photo as ItemPhoto);
+        const json = await readJsonOrThrow<{ photo: ItemPhoto }>(res, 'Upload');
+        newPhotos.push(json.photo);
       }
       setPhotos((arr) => [...arr, ...newPhotos]);
       router.refresh();

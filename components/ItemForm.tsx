@@ -12,6 +12,7 @@ import {
   type ItemStatus,
   type ValueSource,
 } from '@/lib/types';
+import { prepareImageForUpload, readJsonOrThrow } from '@/lib/client/image';
 
 interface SelectOption { id: string; name: string }
 
@@ -150,11 +151,11 @@ export function ItemForm({
     setUploading(true);
     setError(null);
     try {
+      const prepared = await prepareImageForUpload(file);
       const fd = new FormData();
-      fd.append('file', file);
+      fd.append('file', prepared);
       const res = await fetch('/api/upload/photo', { method: 'POST', body: fd });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? 'Upload failed');
+      const json = await readJsonOrThrow<{ url: string; thumb_url: string }>(res, 'Upload');
       setPhotoUrl(json.url);
       setPhotoThumbUrl(json.thumb_url);
     } catch (err) {

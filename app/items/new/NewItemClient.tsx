@@ -8,6 +8,7 @@ import { QuickConfirm, type QuickDraft } from '@/components/QuickConfirm';
 import { ItemExtrasPanel } from '@/components/ItemExtrasPanel';
 import { EMPTY_EXTRAS, type ItemExtrasState } from '@/lib/item-extras';
 import type { ItemSnapshot } from '@/components/DocumentApplyDialog';
+import { prepareImageForUpload, readJsonOrThrow } from '@/lib/client/image';
 
 interface SelectOption { id: string; name: string }
 interface Props {
@@ -67,11 +68,11 @@ export function NewItemClient({ locations, collections, tags, initialCategory, i
     setError(null);
     setUploading(true);
     try {
+      const prepared = await prepareImageForUpload(file);
       const fd = new FormData();
-      fd.append('file', file);
+      fd.append('file', prepared);
       const upRes = await fetch('/api/upload/photo', { method: 'POST', body: fd });
-      const up = await upRes.json();
-      if (!upRes.ok) throw new Error(up.error ?? 'Upload failed');
+      const up = await readJsonOrThrow<{ url: string; thumb_url: string }>(upRes, 'Upload');
       setPhotoUrl(up.url);
       setPhotoThumb(up.thumb_url);
     } catch (err) {
@@ -94,12 +95,12 @@ export function NewItemClient({ locations, collections, tags, initialCategory, i
           hint: hint.trim() || undefined,
         }),
       });
-      const ai = await aiRes.json();
-      if (!aiRes.ok) {
-        console.warn('AI analyze error', ai);
+      try {
+        const ai = await readJsonOrThrow<{ data: AIExtractedItem }>(aiRes, 'Analyze');
+        setPrefill(ai.data);
+      } catch (innerErr) {
+        console.warn('AI analyze error', innerErr);
         setPrefill(null);
-      } else {
-        setPrefill(ai.data as AIExtractedItem);
       }
       setStage('quick');
     } catch (err) {

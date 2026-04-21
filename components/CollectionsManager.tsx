@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { CATEGORIES, type CategorySlug } from '@/lib/types';
+import { prepareImageForUpload, readJsonOrThrow } from '@/lib/client/image';
 
 interface CollectionRow {
   id: string;
@@ -89,11 +90,11 @@ export function CollectionsManager({ rows }: Props) {
   async function handleCoverUpload(id: string, file: File) {
     setUploadingFor(id);
     try {
+      const prepared = await prepareImageForUpload(file);
       const fd = new FormData();
-      fd.append('file', file);
+      fd.append('file', prepared);
       const res = await fetch('/api/upload/photo', { method: 'POST', body: fd });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? 'Upload failed');
+      const json = await readJsonOrThrow<{ url: string }>(res, 'Upload');
       const { error } = await supabase
         .from('collections')
         .update({ cover_photo_url: json.url })
