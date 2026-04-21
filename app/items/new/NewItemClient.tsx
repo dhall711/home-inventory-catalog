@@ -44,6 +44,7 @@ export function NewItemClient({ locations, collections, tags, initialCategory, i
   const [stage, setStage] = useState<Stage>('photo');
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [photoThumb, setPhotoThumb] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [prefill, setPrefill] = useState<AIExtractedItem | null>(null);
   const [quickDraft, setQuickDraft] = useState<QuickDraft | null>(null);
@@ -54,32 +55,42 @@ export function NewItemClient({ locations, collections, tags, initialCategory, i
   //      doesn't lose queued photos, documents, AI applies, or value history.
   const [extras, setExtras] = useState<ItemExtrasState>(EMPTY_EXTRAS);
   const [fileInputKey, setFileInputKey] = useState(0);
-  // Optional free-form hint the user gives the AI before snapping the
-  // photo. Examples: "estate sale find, possibly Tiffany sterling",
-  // "1955 Eames lounge from family". Sent verbatim to /api/analyze-item
-  // as the `hint` field, which is appended to the vision prompt.
+  // Optional free-form hint the user gives the AI alongside the photo.
+  // Captured AFTER the photo is picked (when the user has visual context
+  // for what to write). Sent to /api/analyze-item as the `hint` field
+  // and forwarded to subsequent doc / scan extractions.
   const [hint, setHint] = useState('');
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setError(null);
-    setAnalyzing(true);
+    setUploading(true);
     try {
       const fd = new FormData();
       fd.append('file', file);
-
       const upRes = await fetch('/api/upload/photo', { method: 'POST', body: fd });
       const up = await upRes.json();
       if (!upRes.ok) throw new Error(up.error ?? 'Upload failed');
       setPhotoUrl(up.url);
       setPhotoThumb(up.thumb_url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setUploading(false);
+    }
+  }
 
+  async function handleAnalyze() {
+    if (!photoUrl) return;
+    setError(null);
+    setAnalyzing(true);
+    try {
       const aiRes = await fetch('/api/analyze-item', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          image_url: up.url,
+          image_url: photoUrl,
           hint: hint.trim() || undefined,
         }),
       });
@@ -92,10 +103,16 @@ export function NewItemClient({ locations, collections, tags, initialCategory, i
       }
       setStage('quick');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed');
+      setError(err instanceof Error ? err.message : 'Analyze failed');
     } finally {
       setAnalyzing(false);
     }
+  }
+
+  function clearChosenPhoto() {
+    setPhotoUrl(null);
+    setPhotoThumb(null);
+    setFileInputKey((k) => k + 1);
   }
 
   function resetForAnother(saved: { id: string }) {
@@ -297,56 +314,105 @@ export function NewItemClient({ locations, collections, tags, initialCategory, i
             </p>
           </div>
 
-          <div>
-            <label htmlFor="ai-hint" className="label flex items-center justify-between">
-              <span>
-                Hint for the AI <span className="text-xs font-normal text-brand-400">(optional)</span>
-              </span>
-              {hint && (
+          {!photoUrl ? (
+            <>
+              <input
+                key={fileInputKey}
+                type="file"
+                accept="image/*"
+                onChange={handleFile}
+                disabled={uploading}
+                className="block"
+              />
+              {uploading && <div className="text-sm text-brand-300">Uploading photo…</div>}
+            </>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-start gap-4">
+                <div className="w-32 h-32 rounded-lg bg-brand-950 overflow-hidden border border-brand-800 flex-shrink-0">
+                  <img
+                    src={photoThumb ?? photoUrl}
+                    alt="Selected"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="flex-1 min-w-0 space-y-1">
+                  <div className="text-sm text-emerald-300">✓ Photo uploaded</div>
+                  <button
+                    type="button"
+                    className="text-xs text-brand-400 hover:text-brand-200 underline"
+                    onClick={clearChosenPhoto}
+                    disabled={analyzing}
+                  >
+                    Choose a different photo
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="ai-hint" className="label flex items-center justify-between">
+                  <span>
+                    Hint for the AI <span className="text-xs font-normal text-brand-400">(optional)</span>
+                  </span>
+                  {hint && (
+                    <button
+                      type="button"
+                      className="text-xs text-brand-400 hover:text-brand-200"
+                      onClick={() => setHint('')}
+                      disabled={analyzing}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </label>
+                <textarea
+                  id="ai-hint"
+                  className="input min-h-[60px] text-sm"
+                  value={hint}
+                  onChange={(e) => setHint(e.target.value)}
+                  disabled={analyzing}
+                  maxLength={500}
+                  placeholder="Anything the photo can't show — e.g. 'estate sale find, possibly Tiffany sterling', '1955 Eames lounge from family', 'Made in Japan, gift from in-laws'."
+                />
+                <p className="text-[11px] text-brand-400 mt-1">
+                  Optional context the AI uses when identifying, dating, and valuing the item.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  className="text-xs text-brand-400 hover:text-brand-200"
-                  onClick={() => setHint('')}
+                  className="btn-primary"
+                  onClick={handleAnalyze}
                   disabled={analyzing}
                 >
-                  Clear
+                  {analyzing ? 'Analyzing…' : 'Analyze with AI'}
                 </button>
-              )}
-            </label>
-            <textarea
-              id="ai-hint"
-              className="input min-h-[60px] text-sm"
-              value={hint}
-              onChange={(e) => setHint(e.target.value)}
-              disabled={analyzing}
-              maxLength={500}
-              placeholder="Anything the photo can't show — e.g. 'estate sale find, possibly Tiffany sterling', '1955 Eames lounge from family', 'Made in Japan, gift from in-laws'."
-            />
-            <p className="text-[11px] text-brand-400 mt-1">
-              The AI uses this as extra context when identifying, dating, and valuing the item.
-            </p>
-          </div>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setStage('quick')}
+                  disabled={analyzing}
+                  title="Skip the AI prefill and just keep the photo"
+                >
+                  Skip AI
+                </button>
+              </div>
+            </div>
+          )}
 
-          <input
-            key={fileInputKey}
-            type="file"
-            accept="image/*"
-            onChange={handleFile}
-            disabled={analyzing}
-            className="block"
-          />
-          {analyzing && <div className="text-sm text-brand-300">Uploading and analyzing...</div>}
           {error && <div className="text-sm text-red-300">{error}</div>}
+
           <div className="flex gap-2 pt-2 border-t border-brand-800">
             <button
               type="button"
               className="btn-ghost"
               onClick={() => {
-                setPhotoUrl(null);
-                setPhotoThumb(null);
+                clearChosenPhoto();
                 setPrefill(null);
                 setStage('details');
               }}
+              disabled={uploading || analyzing}
             >
               Skip photo and enter manually
             </button>
